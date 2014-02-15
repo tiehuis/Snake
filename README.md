@@ -6,10 +6,8 @@ To compile:
 ```
 gcc snake.c -o snake -lcurses
 ```
-
 Requires the ncurses library and a linux\unix-like environment.
 
-TODO:
-    - Optimize code layout and logic proof
-    - Clean code and document properly
-    - Define constant values that are used properly
+
+#h6 To Fix
+If another program (i.e. tmux) has occupied a row of your terminal then the collision detection will be off.

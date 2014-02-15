@@ -1,22 +1,37 @@
 #include <stdlib.h>
+#include <stdbool.h>
 #include <unistd.h>
 #include <curses.h>
 
-// global state variables
-int hiscore, score;
-int length, direction;
-int speed, borders;
-int xfr, yfr;
-int *xpos, *ypos;
-WINDOW *win_game, *scores;
+#define INIT_SPEED  40000
+#define INIT_LENGTH 6
+#define SCORE_FILE  ".shs"
+
+enum movement {DOWN, RIGHT, UP, LEFT};
+
+int    hiscore, score;
+int    length,  direction;
+int    speed,   borders;
+int    xfr,     yfr;
+int    *xpos,   *ypos;
+WINDOW *scores, *win_game;
 
 int get_hiscore()
 {
-    FILE *f = fopen(".shs", "r");
-    if (fscanf(f, "%d", &hiscore) == EOF) 
+    FILE *fd = fopen(SCORE_FILE, "r");
+    if (fscanf(fd, "%d", &hiscore) == EOF) 
         hiscore = 0;
-    fclose(f);
+    fclose(fd);
     return hiscore;
+}
+
+void set_hiscore()
+{
+    if (score > hiscore) {
+        FILE *fd = fopen(SCORE_FILE, "w+");
+        fprintf(fd, "%d", score);
+        fclose(fd);
+    }
 }
 
 void refresh_allw()
@@ -27,41 +42,33 @@ void refresh_allw()
 
 void init_start_var()
 {
-    // initialize random seed
     srand((unsigned int)time(NULL));
 
-    // initialize window sizes
-    scores = newwin(1, COLS, 0, 0);
+    scores   = newwin(1, COLS, 0, 0);
     win_game = newwin(LINES - 1, COLS, 1, 0);
     refresh_allw();
 
-    // initialize game state variables
-    hiscore = get_hiscore();
-    score = 0;
-    length = 6;
-    direction = 1;
-    speed = 40000;
-    borders = 0;
+    hiscore   = get_hiscore();
+    score     = 0;
+    length    = INIT_LENGTH;
+    direction = RIGHT;
+    speed     = INIT_SPEED;
+    borders   = false;
     xfr = rand() % COLS;
     yfr = rand() % LINES;
     xpos = malloc(sizeof(int) * length);
     ypos = malloc(sizeof(int) * length);
 
-    // set snake initial values
     int i;
     for (i = 0; i < length; i++) {
         ypos[i] = LINES/2;
-        xpos[i] = (COLS/2) - i;
+        xpos[i] = COLS/2 - i;
     }
 }
 
 void endgame()
 {        
-    if (score > hiscore) {
-        FILE *fd = fopen(".shs", "w+");
-        fprintf(fd, "%d", score);
-    }
-
+    set_hiscore();
     erase();
     refresh();
     endwin();
@@ -76,8 +83,8 @@ void init_ncenv()
     cbreak();
     noecho();
     nodelay(stdscr, TRUE);
-    curs_set(0);
-    timeout(0);
+    curs_set(false);
+    timeout(false);
     init_pair(1, COLOR_GREEN, COLOR_BLACK);
     init_pair(2, COLOR_MAGENTA, COLOR_BLACK);
 }
@@ -92,12 +99,12 @@ void chsnake_collide()
 
 void chborder_collide()
 {
-    if (borders == 0) {
+    if (borders == false) {
         ypos[0] = ypos[0] < 1 ? LINES - 3 : ypos[0] > LINES - 3 ? 1 : ypos[0];
         xpos[0] = xpos[0] < 1 ? COLS - 2  : xpos[0] > COLS - 2  ? 1 : xpos[0];
     }
     else {
-        if (ypos[0] < 1 || ypos[0] > LINES - 2 || xpos[0] < 1 || xpos[0] > COLS - 2)
+        if (ypos[0] < 1 || ypos[0] > LINES - 2 || xpos[0] < 1 || xpos[0] > COLS - 1)
             endgame();
     }
 }
@@ -110,24 +117,29 @@ void upd_snake()
         xpos[i] = xpos[i - 1];
     }
 
-    if (direction == 0) {
-        ypos[0] += 1;}
-    else if (direction == 1) {
-        xpos[0] += 1;}
-    else if (direction == 2) {
-        ypos[0] -= 1;}
-    else {
-        xpos[0] -= 1;}
+    switch (direction) {
+        case DOWN:
+            ypos[0] += 1;
+            break;
+        case RIGHT:
+            xpos[0] += 1;
+            break;
+        case UP:
+            ypos[0] -= 1;
+            break;
+        case LEFT:
+            xpos[0] -= 1;
+            break;
+    }
 }
 
-// ensure that fruit is always drawn in the parameters of the game board
 void chfruit_collide()
 {
     if (xpos[0] == xfr && ypos[0] == yfr) {
         score += length++ << 1;
         mvwprintw(scores, 0, 1, "Score: %d", score);
         xfr = rand() % (COLS - 1) + 1;
-        yfr = rand() % (LINES - 2) + 1;
+        yfr = rand() % (LINES - 2) + 3;
         xpos = realloc(xpos, sizeof(int) * length);
         ypos = realloc(ypos, sizeof(int) * length);
     }
@@ -154,13 +166,17 @@ void keypress_event()
     if (ch != ERR) {
         switch (ch) {
             case 'j':
-                if (direction != 2) direction = 0; break;
+                if (direction != UP) direction = DOWN; 
+                break;
             case 'l':
-                if (direction != 3) direction = 1; break;
+                if (direction != LEFT) direction = RIGHT; 
+                break;
             case 'k': 
-                if (direction != 0) direction = 2; break;
+                if (direction != DOWN) direction = UP; 
+                break;
             case 'h':
-                if (direction != 1) direction = 3; break;
+                if (direction != RIGHT) direction = LEFT; 
+                break;
             case 'q':
                 endgame();
         }
@@ -193,7 +209,7 @@ void draw_game_info()
 void parse_options(int argc, char **argv)
 {
     if (argc > 1 && strcmp(argv[1], "-b") == 0) {
-        borders = 1;
+        borders = true;
         mvwprintw(scores, 0, 61, "Borders on!");
     }
 }
@@ -205,6 +221,5 @@ int main(int argc, char **argv)
     parse_options(argc, argv);
     draw_game_info();
     game_tick();
-    // never reached
     exit(EXIT_FAILURE);
 }
