@@ -16,6 +16,13 @@ int    xfr,     yfr;
 int    *xpos,   *ypos;
 WINDOW *scores, *win_game;
 
+void color_defs()
+{
+    init_pair(1, COLOR_GREEN, COLOR_BLACK);
+    init_pair(2, COLOR_MAGENTA, COLOR_BLACK);
+    init_pair(3, COLOR_RED, COLOR_BLACK);
+}
+
 int get_hiscore()
 {
     FILE *fd = fopen(SCORE_FILE, "r");
@@ -82,12 +89,12 @@ void init_ncenv()
     start_color();
     cbreak();
     noecho();
+    keypad(stdscr, TRUE);
     nodelay(stdscr, TRUE);
     curs_set(false);
     timeout(false);
-    init_pair(1, COLOR_GREEN, COLOR_BLACK);
-    init_pair(2, COLOR_MAGENTA, COLOR_BLACK);
 }
+
 
 void chsnake_collide()
 {
@@ -139,7 +146,7 @@ void chfruit_collide()
         score += length++ << 1;
         mvwprintw(scores, 0, 1, "Score: %d", score);
         xfr = rand() % (COLS - 1) + 1;
-        yfr = rand() % (LINES - 2) + 3;
+        yfr = rand() % (LINES - 3) + 3;
         xpos = realloc(xpos, sizeof(int) * length);
         ypos = realloc(ypos, sizeof(int) * length);
     }
@@ -160,25 +167,65 @@ void draw_snake()
     wattroff(win_game, COLOR_PAIR(1));
 }
 
+void pause_menu()
+{
+    int ch;
+    int pause_height = 8;
+    int pause_width = 40;
+
+    WINDOW *pause_win = newwin(pause_height, pause_width, 
+        LINES / 2 - pause_height / 2, COLS / 2 - pause_width / 2);
+
+    curs_set(true);
+    box(pause_win, 0, 0);
+
+    wattron(pause_win, COLOR_PAIR(3));
+    mvwprintw(pause_win, pause_height / 2 - 1, 3, "<p> to continue the game");
+    mvwprintw(pause_win, pause_height / 2, 3, "<q> to quit this game");
+    wattron(pause_win, COLOR_PAIR(3));
+    wrefresh(pause_win);
+
+    while (ch = getch()) {
+        switch (ch) {
+            case 'p':
+                delwin(pause_win);
+                refresh_allw();
+                curs_set(false);
+                return;
+            case 'q':
+                endgame();
+                break;
+        }
+    }
+}
+
 void keypress_event()
 {
     int ch = getch();
     if (ch != ERR) {
         switch (ch) {
             case 'j':
+            case KEY_DOWN:
                 if (direction != UP) direction = DOWN; 
                 break;
             case 'l':
+            case KEY_RIGHT:
                 if (direction != LEFT) direction = RIGHT; 
                 break;
             case 'k': 
+            case KEY_UP:
                 if (direction != DOWN) direction = UP; 
                 break;
             case 'h':
+            case KEY_LEFT:
                 if (direction != RIGHT) direction = LEFT; 
+                break;
+            case 'p':
+                pause_menu();
                 break;
             case 'q':
                 endgame();
+                break;
         }
     }
 }
@@ -187,7 +234,6 @@ void game_tick()
 {
     while (1) {
         keypress_event();
-        box(win_game, 0, 0);
         mvwprintw(win_game, ypos[length - 1], xpos[length - 1], " ");
         draw_fruit();
         chfruit_collide();
@@ -200,10 +246,11 @@ void game_tick()
     }
 }
 
-void draw_game_info()
+void draw_static()
 {
     mvwprintw(scores, 0, 1, "Score: %d", score);
     mvwprintw(scores, 0, 31, "Hiscore: %d", hiscore);
+    box(win_game, 0, 0);
 }
 
 void parse_options(int argc, char **argv)
@@ -217,9 +264,10 @@ void parse_options(int argc, char **argv)
 int main(int argc, char **argv)
 {
     init_ncenv();
+    color_defs();
     init_start_var();
     parse_options(argc, argv);
-    draw_game_info();
+    draw_static();
     game_tick();
     exit(EXIT_FAILURE);
 }
