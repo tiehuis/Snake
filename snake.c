@@ -4,6 +4,7 @@
           ... any board changes are automatically dealt with.
           Improve highscore storing; keep a history of values and not just the highest. Protect by...
           ... encoding in a different non-readable format.
+          Optimize.
  */
 
 #include <stdlib.h>
@@ -57,11 +58,10 @@ int get_hiscore()
 // Set the hiscore - split the check of this back into the main game loop
 void set_hiscore()
 {
-    if (score > hiscore) {
-        FILE *fd = fopen(SCORE_FILE, "w+");
-        fprintf(fd, "%d", score);
-        fclose(fd);
-    }
+    hiscore = score;
+    FILE *fd = fopen(SCORE_FILE, "w+");
+    fprintf(fd, "%d", hiscore);
+    fclose(fd);
 }
 
 // Refresh all persistent game windows
@@ -101,7 +101,7 @@ void init_start_var()
 // Run procedures before ending the game
 void endgame()
 {        
-    set_hiscore();
+    if (score > hiscore) set_hiscore();
     erase();
     refresh();
     endwin();
@@ -190,7 +190,7 @@ void draw_fruit()
     wattroff(win_game, COLOR_PAIR(MAGENTA));
 }
 
-// Draw the snake to the game window
+// Update the snake, just drawing the parts necessary
 void draw_snake()
 {
     wattron(win_game, COLOR_PAIR(GREEN));
@@ -199,12 +199,23 @@ void draw_snake()
     wattroff(win_game, COLOR_PAIR(GREEN));
 }
 
+// Redraw all parts of the snake
+void refresh_snake()
+{
+    int i;
+    wattron(win_game, COLOR_PAIR(GREEN));
+    mvwprintw(win_game, ypos[0], xpos[0], "@");
+    for (i = 1; i < length; i++) 
+        mvwprintw(win_game, ypos[i], xpos[i], "*");
+    wattroff(win_game, COLOR_PAIR(GREEN));
+}
+
 // Initialize the pause menu and wait for user interaction
 void pause_menu()
 {
     int ch;
-    int pause_height = 8;
-    int pause_width = 40;
+    int pause_height = 5;
+    int pause_width = 30;
 
     WINDOW *pause_win = newwin(pause_height, pause_width, 
         LINES / 2 - pause_height / 2, COLS / 2 - pause_width / 2);
@@ -213,7 +224,7 @@ void pause_menu()
     box(pause_win, 0, 0);
 
     wattron(pause_win, COLOR_PAIR(RED));
-    mvwprintw(pause_win, pause_height / 2 - 1, 3, "<p> to continue the game");
+    mvwprintw(pause_win, pause_height / 2 - 1, 2, "<p> to continue the game");
     mvwprintw(pause_win, pause_height / 2, 3, "<q> to quit this game");
     wattron(pause_win, COLOR_PAIR(RED));
     wrefresh(pause_win);
@@ -226,6 +237,7 @@ void pause_menu()
                 werase(pause_win);
                 wrefresh(pause_win);
                 delwin(pause_win);
+                refresh_snake();
                 refresh_allw();
                 return;
             case 'q':
@@ -268,7 +280,7 @@ void keypress_event()
 }
 
 // The main game loop; calls other functions as needed
-void game_tick()
+void game_loop()
 {
     while (1) {
         keypress_event();
@@ -309,6 +321,7 @@ int main(int argc, char **argv)
     init_start_var();
     parse_options(argc, argv);
     draw_static();
-    game_tick();
+    refresh_snake();
+    game_loop();
     exit(EXIT_FAILURE);
 }
