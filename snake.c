@@ -1,3 +1,11 @@
+/*
+ *  TODO: Rename variables, consolidate style and improve the program flow so it's natural to follow.
+ *        Consolidate any constant values dependent on the board size and abstract them out so that...
+          ... any board changes are automatically dealt with.
+          Improve highscore storing; keep a history of values and not just the highest. Protect by...
+          ... encoding in a different non-readable format.
+ */
+
 #include <stdlib.h>
 #include <stdbool.h>
 #include <unistd.h>
@@ -5,24 +13,38 @@
 
 #define INIT_SPEED  40000
 #define INIT_LENGTH 6
+#define SCORE_WINH  1
 #define SCORE_FILE  ".shs"
 
+// type enumerations
 enum movement {DOWN, RIGHT, UP, LEFT};
+enum colorset {GREEN = 1, MAGENTA, RED};
 
-int    hiscore, score;
-int    length,  direction;
-int    speed,   borders;
-int    xfr,     yfr;
-int    *xpos,   *ypos;
-WINDOW *scores, *win_game;
+// Declaration of static variables
+int hiscore;
+int score;
+int length;
+int direction;
+int speed;
+int borders;
+int xfr;
+int yfr;
+int *xpos;
+int *ypos;
 
-void color_defs()
+// Main game windows
+WINDOW *scores;
+WINDOW *win_game;
+
+// Define color pairs 
+void def_colors()
 {
-    init_pair(1, COLOR_GREEN, COLOR_BLACK);
-    init_pair(2, COLOR_MAGENTA, COLOR_BLACK);
-    init_pair(3, COLOR_RED, COLOR_BLACK);
+    init_pair(GREEN,   COLOR_GREEN,   COLOR_BLACK);
+    init_pair(MAGENTA, COLOR_MAGENTA, COLOR_BLACK);
+    init_pair(RED,     COLOR_RED,     COLOR_BLACK);
 }
 
+// Return the current hiscore on file
 int get_hiscore()
 {
     FILE *fd = fopen(SCORE_FILE, "r");
@@ -32,6 +54,7 @@ int get_hiscore()
     return hiscore;
 }
 
+// Set the hiscore - split the check of this back into the main game loop
 void set_hiscore()
 {
     if (score > hiscore) {
@@ -41,18 +64,20 @@ void set_hiscore()
     }
 }
 
+// Refresh all persistent game windows
 void refresh_allw()
 {
     wrefresh(scores);
     wrefresh(win_game);
 }
 
+// Initialize start variables to values
 void init_start_var()
 {
     srand((unsigned int)time(NULL));
 
-    scores   = newwin(1, COLS, 0, 0);
-    win_game = newwin(LINES - 1, COLS, 1, 0);
+    scores   = newwin(SCORE_WINH, COLS, 0, 0);
+    win_game = newwin(LINES - SCORE_WINH, COLS, SCORE_WINH, 0);
     refresh_allw();
 
     hiscore   = get_hiscore();
@@ -73,6 +98,7 @@ void init_start_var()
     }
 }
 
+// Run procedures before ending the game
 void endgame()
 {        
     set_hiscore();
@@ -83,6 +109,7 @@ void endgame()
     exit(EXIT_SUCCESS);
 }
 
+// Initialize the ncurses environment
 void init_ncenv()
 {
     initscr();
@@ -95,15 +122,16 @@ void init_ncenv()
     timeout(false);
 }
 
-
+// Check if the snake has collided with itself
 void chsnake_collide()
 {
     int i;    
     for (i = 1; i < length - 1; i++)
-        if (ypos[0] == ypos[i] && xpos[0] == xpos[i])
+        if (xpos[0] == xpos[i] && ypos[0] == ypos[i])
             endgame();
 }
 
+// Check if the snake has collided with the border
 void chborder_collide()
 {
     if (borders == false) {
@@ -116,6 +144,7 @@ void chborder_collide()
     }
 }
 
+// Update the snakes position
 void upd_snake()
 {
     int i;
@@ -140,6 +169,7 @@ void upd_snake()
     }
 }
 
+// Check if the snake has collided with the fruit
 void chfruit_collide()
 {
     if (xpos[0] == xfr && ypos[0] == yfr) {
@@ -152,21 +182,24 @@ void chfruit_collide()
     }
 }
 
+// Draw the fruit to the game window
 void draw_fruit() 
 {
-    wattron(win_game, COLOR_PAIR(2));
+    wattron(win_game, COLOR_PAIR(MAGENTA));
     mvwprintw(win_game, yfr, xfr, "#");
-    wattroff(win_game, COLOR_PAIR(2));
+    wattroff(win_game, COLOR_PAIR(MAGENTA));
 }
 
+// Draw the snake to the game window
 void draw_snake()
 {
-    wattron(win_game, COLOR_PAIR(1));
+    wattron(win_game, COLOR_PAIR(GREEN));
     mvwprintw(win_game, ypos[0], xpos[0], "@");
     mvwprintw(win_game, ypos[1], xpos[1], "*");
-    wattroff(win_game, COLOR_PAIR(1));
+    wattroff(win_game, COLOR_PAIR(GREEN));
 }
 
+// Initialize the pause menu and wait for user interaction
 void pause_menu()
 {
     int ch;
@@ -179,18 +212,21 @@ void pause_menu()
     curs_set(true);
     box(pause_win, 0, 0);
 
-    wattron(pause_win, COLOR_PAIR(3));
+    wattron(pause_win, COLOR_PAIR(RED));
     mvwprintw(pause_win, pause_height / 2 - 1, 3, "<p> to continue the game");
     mvwprintw(pause_win, pause_height / 2, 3, "<q> to quit this game");
-    wattron(pause_win, COLOR_PAIR(3));
+    wattron(pause_win, COLOR_PAIR(RED));
     wrefresh(pause_win);
 
+    // delete pause window entirely
     while (ch = getch()) {
         switch (ch) {
             case 'p':
+                curs_set(false);
+                werase(pause_win);
+                wrefresh(pause_win);
                 delwin(pause_win);
                 refresh_allw();
-                curs_set(false);
                 return;
             case 'q':
                 endgame();
@@ -199,6 +235,7 @@ void pause_menu()
     }
 }
 
+// Check for keypress and process if one has occured
 void keypress_event()
 {
     int ch = getch();
@@ -230,6 +267,7 @@ void keypress_event()
     }
 }
 
+// The main game loop; calls other functions as needed
 void game_tick()
 {
     while (1) {
@@ -246,25 +284,28 @@ void game_tick()
     }
 }
 
+// Draw non-changing/static portions of the windows
 void draw_static()
 {
     mvwprintw(scores, 0, 1, "Score: %d", score);
-    mvwprintw(scores, 0, 31, "Hiscore: %d", hiscore);
+    mvwprintw(scores, 0, COLS/4 + 1, "Hiscore: %d", hiscore);
     box(win_game, 0, 0);
 }
 
+// Parse the intput options
 void parse_options(int argc, char **argv)
 {
     if (argc > 1 && strcmp(argv[1], "-b") == 0) {
         borders = true;
-        mvwprintw(scores, 0, 61, "Borders on!");
+        mvwprintw(scores, 0, COLS/2, "Borders on!");
     }
 }
 
+// Entry point for program
 int main(int argc, char **argv)
 {
     init_ncenv();
-    color_defs();
+    def_colors();
     init_start_var();
     parse_options(argc, argv);
     draw_static();
