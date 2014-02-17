@@ -3,6 +3,7 @@
  *        Improve highscore storing; keep a history of values and not just the highest. Protect by...
  *        ... encoding in a different non-readable format.
  *        Might change back some of the justifying on some function calls with longer arguments
+ *        Fix borders mode and before next commit
  *        Optimizations
  */
 
@@ -77,7 +78,7 @@ void refresh_allw()
 void rand_fruit()
 { 
     xfr = (rand() % (COLS - 2)) + 1;
-    yfr = (rand() % (LINES - SCORE_WINH - 2)) + SCORE_WINH + 1;
+    yfr = (rand() % (LINES - SCORE_WINH - 2)) + 1;
 }
 
 // Run procedures before ending the game
@@ -90,11 +91,10 @@ void endgame()
     endwin();
 
     printf("Your score this game was %d\n"
-           "The highscore is %d", 
+           "The highscore is %d\n", 
             score, hiscore);
-    printf(score == highscore ?
-        "You set a new highscore!\n" :
-        "\n");
+    printf(score == hiscore ?
+        "You set a new highscore!\n" : "");
 
     exit(EXIT_SUCCESS);
 }
@@ -278,6 +278,8 @@ void draw_static()
 {
     mvwprintw(scores, 0, 1,          "Score: %d",   score);
     mvwprintw(scores, 0, COLS/4 + 1, "Hiscore: %d", hiscore);
+    if (borders == true)
+        mvwprintw(scores, 0, COLS/2, "Borders on!");
     box(win_game, 0, 0);
 }
 
@@ -295,7 +297,6 @@ void init_start_var()
     length    = INIT_LENGTH;
     direction = RIGHT;
     speed     = INIT_SPEED;
-    borders   = false;
     rand_fruit();
     xpos = malloc(sizeof(int) * length);
     ypos = malloc(sizeof(int) * length);
@@ -326,7 +327,9 @@ void parse_options(int argc, char **argv)
     if (argc > 1 && strcmp(argv[1], "-b") == 0) {
         borders = true;
         SCORE_FILE = ".sbhs";
-        mvwprintw(scores, 0, COLS/2, "Borders on!");
+    }
+    else {
+        borders = false;
     }
 }
 
