@@ -1,10 +1,11 @@
 /*
  *  TODO: Rename variables, consolidate style and improve the program flow so it's natural to follow.
  *        Consolidate any constant values dependent on the board size and abstract them out so that...
-          ... any board changes are automatically dealt with.
-          Improve highscore storing; keep a history of values and not just the highest. Protect by...
-          ... encoding in a different non-readable format.
-          Optimize.
+ *        ... any board changes are automatically dealt with.
+ *        Improve highscore storing; keep a history of values and not just the highest. Protect by...
+ *        ... encoding in a different non-readable format.
+ *        Optimize.
+ *        Fruit is not being drawn in bounds when score window size is increased, isolate problem.
  */
 
 #include <stdlib.h>
@@ -16,6 +17,8 @@
 #define INIT_LENGTH 6
 #define SCORE_WINH  1
 #define SCORE_FILE  ".shs"
+#define SNAKE_HEAD "@"
+#define SNAKE_BODY "*"
 
 // type enumerations
 enum movement {DOWN, RIGHT, UP, LEFT};
@@ -45,17 +48,17 @@ void def_colors()
     init_pair(RED,     COLOR_RED,     COLOR_BLACK);
 }
 
-// Return the current hiscore on file
+// Return the current hiscore on file, creating the file if it doesn't exist
 int get_hiscore()
 {
     FILE *fd = fopen(SCORE_FILE, "r");
-    if (fscanf(fd, "%d", &hiscore) == EOF) 
-        hiscore = 0;
+    if (fd == NULL) fd = fopen(SCORE_FILE, "w+");
+    if (fscanf(fd, "%d", &hiscore) == EOF) hiscore = 0;
     fclose(fd);
     return hiscore;
 }
 
-// Set the hiscore - split the check of this back into the main game loop
+// Set the hiscore
 void set_hiscore()
 {
     hiscore = score;
@@ -69,6 +72,13 @@ void refresh_allw()
 {
     wrefresh(scores);
     wrefresh(win_game);
+}
+
+// sets the fruit position to a random value on the game board
+void rand_fruit()
+{
+    xfr = rand() % (COLS - 2) + 1;
+    yfr = rand() % (LINES - 2) + (2 + SCORE_WINH);
 }
 
 // Initialize start variables to values
@@ -86,8 +96,7 @@ void init_start_var()
     direction = RIGHT;
     speed     = INIT_SPEED;
     borders   = false;
-    xfr = rand() % COLS;
-    yfr = rand() % LINES;
+    rand_fruit();
     xpos = malloc(sizeof(int) * length);
     ypos = malloc(sizeof(int) * length);
 
@@ -135,11 +144,11 @@ void chsnake_collide()
 void chborder_collide()
 {
     if (borders == false) {
-        ypos[0] = ypos[0] < 1 ? LINES - 3 : ypos[0] > LINES - 3 ? 1 : ypos[0];
-        xpos[0] = xpos[0] < 1 ? COLS - 2  : xpos[0] > COLS - 2  ? 1 : xpos[0];
+        ypos[0] = ypos[0] < 1 ? LINES - SCORE_WINH - 2 : ypos[0] > LINES - SCORE_WINH - 2 ? 1 : ypos[0];
+        xpos[0] = xpos[0] < 1 ? COLS  - 2              : xpos[0] > COLS - 2               ? 1 : xpos[0];
     }
     else {
-        if (ypos[0] < 1 || ypos[0] > LINES - 2 || xpos[0] < 1 || xpos[0] > COLS - 1)
+        if (ypos[0] <= 0 || ypos[0] > LINES - SCORE_WINH - 1 || xpos[0] <= 0 || xpos[0] > COLS - 1)
             endgame();
     }
 }
@@ -175,8 +184,7 @@ void chfruit_collide()
     if (xpos[0] == xfr && ypos[0] == yfr) {
         score += length++ << 1;
         mvwprintw(scores, 0, 1, "Score: %d", score);
-        xfr = rand() % (COLS - 1) + 1;
-        yfr = rand() % (LINES - 3) + 3;
+        rand_fruit();
         xpos = realloc(xpos, sizeof(int) * length);
         ypos = realloc(ypos, sizeof(int) * length);
     }
@@ -194,8 +202,8 @@ void draw_fruit()
 void draw_snake()
 {
     wattron(win_game, COLOR_PAIR(GREEN));
-    mvwprintw(win_game, ypos[0], xpos[0], "@");
-    mvwprintw(win_game, ypos[1], xpos[1], "*");
+    mvwprintw(win_game, ypos[0], xpos[0], SNAKE_HEAD);
+    mvwprintw(win_game, ypos[1], xpos[1], SNAKE_BODY);
     wattroff(win_game, COLOR_PAIR(GREEN));
 }
 
@@ -204,9 +212,9 @@ void refresh_snake()
 {
     int i;
     wattron(win_game, COLOR_PAIR(GREEN));
-    mvwprintw(win_game, ypos[0], xpos[0], "@");
+    mvwprintw(win_game, ypos[0], xpos[0], SNAKE_HEAD);
     for (i = 1; i < length; i++) 
-        mvwprintw(win_game, ypos[i], xpos[i], "*");
+        mvwprintw(win_game, ypos[i], xpos[i], SNAKE_BODY);
     wattroff(win_game, COLOR_PAIR(GREEN));
 }
 
@@ -214,26 +222,22 @@ void refresh_snake()
 void pause_menu()
 {
     int ch;
-    int pause_height = 5;
-    int pause_width = 30;
+    int pause_height = 4;
+    int pause_width = 20;
 
     WINDOW *pause_win = newwin(pause_height, pause_width, 
         LINES / 2 - pause_height / 2, COLS / 2 - pause_width / 2);
 
-    curs_set(true);
     box(pause_win, 0, 0);
-
     wattron(pause_win, COLOR_PAIR(RED));
-    mvwprintw(pause_win, pause_height / 2 - 1, 2, "<p> to continue the game");
-    mvwprintw(pause_win, pause_height / 2, 3, "<q> to quit this game");
+    mvwprintw(pause_win, pause_height / 2 - 1, 2, "<p> to continue");
+    mvwprintw(pause_win, pause_height / 2, 4, "<q> to quit");
     wattron(pause_win, COLOR_PAIR(RED));
     wrefresh(pause_win);
 
-    // delete pause window entirely
     while (ch = getch()) {
         switch (ch) {
             case 'p':
-                curs_set(false);
                 werase(pause_win);
                 wrefresh(pause_win);
                 delwin(pause_win);
