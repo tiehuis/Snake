@@ -1,12 +1,9 @@
 /*
- *  TODO: Rename variables, consolidate style and improve the program flow so it's natural to follow.
- *        Consolidate any constant values dependent on the board size and abstract them out so that...
- *        ... any board changes are automatically dealt with.
+ *  TODO: 
  *        Improve highscore storing; keep a history of values and not just the highest. Protect by...
  *        ... encoding in a different non-readable format.
- *        Fruit is not being drawn in bounds on some occasions
- *        Seperate hiscore files for border and non-border modes
- *        Optimize
+ *        Might change back some of the justifying on some function calls with longer arguments
+ *        Optimizations
  */
 
 #include <stdlib.h>
@@ -24,7 +21,7 @@
 enum movement {DOWN, RIGHT, UP, LEFT};
 enum colorset {GREEN = 1, MAGENTA};
 
-// score file to write out to
+// score file to write out to; default to non-border
 char *SCORE_FILE = ".snhs";
 
 // Declaration of static variables
@@ -78,59 +75,28 @@ void refresh_allw()
 
 // sets the fruit position to a random value on the game board
 void rand_fruit()
-{
-    xfr = rand() % (COLS - 2) + 1;
-    yfr = rand() % (LINES - 2) + (2 + SCORE_WINH);
-}
-
-// Initialize start variables to values
-void init_start_var()
-{
-    srand((unsigned int)time(NULL));
-
-    scores   = newwin(SCORE_WINH, COLS, 0, 0);
-    win_game = newwin(LINES - SCORE_WINH, COLS, SCORE_WINH, 0);
-    refresh_allw();
-
-    score     = 0;
-    hiscore   = get_hiscore();
-    length    = INIT_LENGTH;
-    direction = RIGHT;
-    speed     = INIT_SPEED;
-    borders   = false;
-    rand_fruit();
-    xpos = malloc(sizeof(int) * length);
-    ypos = malloc(sizeof(int) * length);
-
-    int i;
-    for (i = 0; i < length; i++) {
-        ypos[i] = LINES/2;
-        xpos[i] = COLS/2 - i;
-    }
+{ 
+    xfr = (rand() % (COLS - 2)) + 1;
+    yfr = (rand() % (LINES - SCORE_WINH - 2)) + SCORE_WINH + 1;
 }
 
 // Run procedures before ending the game
 void endgame()
 {        
-    if (score > hiscore) set_hiscore();
+    if (score > hiscore) 
+        set_hiscore();        
     erase();
     refresh();
     endwin();
-    printf("Your score was %d\nThe highscore is %d\n", score, hiscore);
-    exit(EXIT_SUCCESS);
-}
 
-// Initialize the ncurses environment
-void init_ncenv()
-{
-    initscr();
-    start_color();
-    cbreak();
-    noecho();
-    keypad(stdscr, TRUE);
-    nodelay(stdscr, TRUE);
-    curs_set(false);
-    timeout(false);
+    printf("Your score this game was %d\n"
+           "The highscore is %d", 
+            score, hiscore);
+    printf(score == highscore ?
+        "You set a new highscore!\n" :
+        "\n");
+
+    exit(EXIT_SUCCESS);
 }
 
 // Check if the snake has collided with itself
@@ -146,11 +112,14 @@ void chsnake_collide()
 void chborder_collide()
 {
     if (borders == false) {
-        ypos[0] = ypos[0] < 1 ? LINES - SCORE_WINH - 2 : ypos[0] > LINES - SCORE_WINH - 2 ? 1 : ypos[0];
-        xpos[0] = xpos[0] < 1 ? COLS  - 2              : xpos[0] > COLS - 2               ? 1 : xpos[0];
+        ypos[0] = ypos[0] < 1 ? LINES - SCORE_WINH - 2 : 
+            ypos[0] > LINES - SCORE_WINH - 2 ? 1 : ypos[0];
+        xpos[0] = xpos[0] < 1 ? COLS - 2 : 
+            xpos[0] > COLS - 2 ? 1 : xpos[0];
     }
     else {
-        if (ypos[0] <= 0 || ypos[0] > LINES - SCORE_WINH - 1 || xpos[0] <= 0 || xpos[0] > COLS - 1)
+        if (ypos[0] < 1 || ypos[0] > LINES - SCORE_WINH - 1 || 
+                xpos[0] < 1 || xpos[0] > COLS - 1)
             endgame();
     }
 }
@@ -232,7 +201,7 @@ void pause_menu()
 
     box(pause_win, 0, 0);
     mvwprintw(pause_win, pause_height / 2 - 1, 2, "<p> to continue");
-    mvwprintw(pause_win, pause_height / 2, 4, "<q> to quit");
+    mvwprintw(pause_win, pause_height / 2,     4, "<q> to quit");
     wrefresh(pause_win);
 
     while (ch = getch()) {
@@ -259,19 +228,23 @@ void keypress_event()
         switch (ch) {
             case 'j':
             case KEY_DOWN:
-                if (direction != UP) direction = DOWN; 
+                if (direction != UP) 
+                    direction = DOWN; 
                 break;
             case 'l':
             case KEY_RIGHT:
-                if (direction != LEFT) direction = RIGHT; 
+                if (direction != LEFT) 
+                    direction = RIGHT; 
                 break;
             case 'k': 
             case KEY_UP:
-                if (direction != DOWN) direction = UP; 
+                if (direction != DOWN) 
+                    direction = UP; 
                 break;
             case 'h':
             case KEY_LEFT:
-                if (direction != RIGHT) direction = LEFT; 
+                if (direction != RIGHT) 
+                    direction = LEFT; 
                 break;
             case 'p':
                 pause_menu();
@@ -303,9 +276,48 @@ void game_loop()
 // Draw non-changing/static portions of the windows
 void draw_static()
 {
-    mvwprintw(scores, 0, 1, "Score: %d", score);
+    mvwprintw(scores, 0, 1,          "Score: %d",   score);
     mvwprintw(scores, 0, COLS/4 + 1, "Hiscore: %d", hiscore);
     box(win_game, 0, 0);
+}
+
+// Initialize start variables to values
+void init_start_var()
+{
+    srand((unsigned int)time(NULL));
+
+    scores   = newwin(SCORE_WINH,         COLS, 0,          0);
+    win_game = newwin(LINES - SCORE_WINH, COLS, SCORE_WINH, 0);
+    refresh_allw();
+
+    score     = 0;
+    hiscore   = get_hiscore();
+    length    = INIT_LENGTH;
+    direction = RIGHT;
+    speed     = INIT_SPEED;
+    borders   = false;
+    rand_fruit();
+    xpos = malloc(sizeof(int) * length);
+    ypos = malloc(sizeof(int) * length);
+
+    int i;
+    for (i = 0; i < length; i++) {
+        ypos[i] = LINES/2;
+        xpos[i] = COLS/2 - i;
+    }
+}
+
+// Initialize the ncurses environment
+void init_ncenv()
+{
+    initscr();
+    start_color();
+    cbreak();
+    noecho();
+    keypad(stdscr, TRUE);
+    nodelay(stdscr, TRUE);
+    curs_set(false);
+    timeout(false);
 }
 
 // Parse the intput options
