@@ -4,8 +4,9 @@
  *        ... any board changes are automatically dealt with.
  *        Improve highscore storing; keep a history of values and not just the highest. Protect by...
  *        ... encoding in a different non-readable format.
- *        Optimize.
- *        Fruit is not being drawn in bounds when score window size is increased, isolate problem.
+ *        Fruit is not being drawn in bounds on some occasions
+ *        Seperate hiscore files for border and non-border modes
+ *        Optimize
  */
 
 #include <stdlib.h>
@@ -16,13 +17,15 @@
 #define INIT_SPEED  40000
 #define INIT_LENGTH 6
 #define SCORE_WINH  1
-#define SCORE_FILE  ".shs"
-#define SNAKE_HEAD "@"
-#define SNAKE_BODY "*"
+#define SNAKE_HEAD  "@"
+#define SNAKE_BODY  "*"
 
 // type enumerations
 enum movement {DOWN, RIGHT, UP, LEFT};
-enum colorset {GREEN = 1, MAGENTA, RED};
+enum colorset {GREEN = 1, MAGENTA};
+
+// score file to write out to
+char *SCORE_FILE = ".snhs";
 
 // Declaration of static variables
 int hiscore;
@@ -45,7 +48,6 @@ void def_colors()
 {
     init_pair(GREEN,   COLOR_GREEN,   COLOR_BLACK);
     init_pair(MAGENTA, COLOR_MAGENTA, COLOR_BLACK);
-    init_pair(RED,     COLOR_RED,     COLOR_BLACK);
 }
 
 // Return the current hiscore on file, creating the file if it doesn't exist
@@ -90,8 +92,8 @@ void init_start_var()
     win_game = newwin(LINES - SCORE_WINH, COLS, SCORE_WINH, 0);
     refresh_allw();
 
-    hiscore   = get_hiscore();
     score     = 0;
+    hiscore   = get_hiscore();
     length    = INIT_LENGTH;
     direction = RIGHT;
     speed     = INIT_SPEED;
@@ -223,16 +225,14 @@ void pause_menu()
 {
     int ch;
     int pause_height = 4;
-    int pause_width = 20;
+    int pause_width = 19;
 
     WINDOW *pause_win = newwin(pause_height, pause_width, 
         LINES / 2 - pause_height / 2, COLS / 2 - pause_width / 2);
 
     box(pause_win, 0, 0);
-    wattron(pause_win, COLOR_PAIR(RED));
     mvwprintw(pause_win, pause_height / 2 - 1, 2, "<p> to continue");
     mvwprintw(pause_win, pause_height / 2, 4, "<q> to quit");
-    wattron(pause_win, COLOR_PAIR(RED));
     wrefresh(pause_win);
 
     while (ch = getch()) {
@@ -313,6 +313,7 @@ void parse_options(int argc, char **argv)
 {
     if (argc > 1 && strcmp(argv[1], "-b") == 0) {
         borders = true;
+        SCORE_FILE = ".sbhs";
         mvwprintw(scores, 0, COLS/2, "Borders on!");
     }
 }
@@ -320,10 +321,10 @@ void parse_options(int argc, char **argv)
 // Entry point for program
 int main(int argc, char **argv)
 {
-    init_ncenv();
-    def_colors();
-    init_start_var();
     parse_options(argc, argv);
+    init_ncenv();
+    init_start_var();
+    def_colors();
     draw_static();
     refresh_snake();
     game_loop();
