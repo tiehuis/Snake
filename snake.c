@@ -3,7 +3,7 @@
  *        Improve highscore storing; keep a history of values and not just the highest. Protect by...
  *        ... encoding in a different non-readable format.
  *        Might change back some of the justifying on some function calls with longer arguments
- *        Fix borders mode and before next commit
+ *        Create header
  *        Optimizations
  */
 
@@ -17,6 +17,12 @@
 #define SCORE_WINH  1
 #define SNAKE_HEAD  "@"
 #define SNAKE_BODY  "*"
+
+// create header file
+void game_loop();
+void draw_static();
+void init_start_var();
+void init_ncenv();
 
 // type enumerations
 enum movement {DOWN, RIGHT, UP, LEFT};
@@ -82,6 +88,7 @@ void rand_fruit()
 }
 
 // Run procedures before ending the game
+// Split this function into 3 parts: end_session(), print_score(), and just a standard exit(0);
 void endgame()
 {        
     if (score > hiscore) 
@@ -189,11 +196,22 @@ void refresh_snake()
     wattroff(win_game, COLOR_PAIR(GREEN));
 }
 
+// don't need to clear entire grid, just snake and fruit pos
+// move into two seperate functions
+void clear_grid()
+{
+    int i;
+    for (i = 0; i < length; i++) {
+        mvwprintw(win_game, ypos[i], xpos[i], " ");
+    }
+    mvwprintw(win_game, yfr, xfr, " ");
+}
+
 // Initialize the pause menu and wait for user interaction
 void pause_menu()
 {
     int ch;
-    int pause_height = 4;
+    int pause_height = 5;
     int pause_width = 19;
 
     WINDOW *pause_win = newwin(pause_height, pause_width, 
@@ -201,7 +219,8 @@ void pause_menu()
 
     box(pause_win, 0, 0);
     mvwprintw(pause_win, pause_height / 2 - 1, 2, "<p> to continue");
-    mvwprintw(pause_win, pause_height / 2,     4, "<q> to quit");
+    mvwprintw(pause_win, pause_height / 2,     2, "<r> to restart");
+    mvwprintw(pause_win, pause_height / 2 + 1, 2, "<q> to quit");
     wrefresh(pause_win);
 
     while (ch = getch()) {
@@ -213,6 +232,21 @@ void pause_menu()
                 refresh_snake();
                 refresh_allw();
                 return;
+            // change this so the ncurses environment is not redrawn from scratch
+            // just init the start variables and clear the playing field
+            // free the xpos and ypos variables
+            case 'r':
+                if (score > hiscore) 
+                    set_hiscore();        
+                clear_grid();
+                free(xpos);
+                free(ypos);
+                init_start_var();
+                draw_static();
+                refresh_snake();
+                refresh_allw();
+                game_loop();
+                break;
             case 'q':
                 endgame();
                 break;
@@ -276,6 +310,10 @@ void game_loop()
 // Draw non-changing/static portions of the windows
 void draw_static()
 {
+    // on reset, ensure that the entire grid that was covered by 'score'...
+    // ...is reverted back to empty chars
+    // find a more elegant way to do this
+    mvwprintw(scores, 0, 1,          "                  ");
     mvwprintw(scores, 0, 1,          "Score: %d",   score);
     mvwprintw(scores, 0, COLS/4 + 1, "Hiscore: %d", hiscore);
     if (borders == true)
@@ -286,11 +324,8 @@ void draw_static()
 // Initialize start variables to values
 void init_start_var()
 {
-    srand((unsigned int)time(NULL));
-
-    scores   = newwin(SCORE_WINH,         COLS, 0,          0);
-    win_game = newwin(LINES - SCORE_WINH, COLS, SCORE_WINH, 0);
-    refresh_allw();
+    // decide whether to reseed on each game, or on every session
+    // should move this elsewhere
 
     score     = 0;
     hiscore   = get_hiscore();
@@ -319,12 +354,17 @@ void init_ncenv()
     nodelay(stdscr, TRUE);
     curs_set(false);
     timeout(false);
+
+    scores   = newwin(SCORE_WINH,         COLS, 0,          0);
+    win_game = newwin(LINES - SCORE_WINH, COLS, SCORE_WINH, 0);
+    refresh_allw();
 }
 
 // Parse the intput options
+// Add some more options, such as --help, etc
 void parse_options(int argc, char **argv)
 {
-    if (argc > 1 && strcmp(argv[1], "-b") == 0) {
+    if (argc > 1 && (strcmp(argv[1], "-b") == 0 || strcmp(argv[1], "--borders") == 0)) {
         borders = true;
         SCORE_FILE = ".sbhs";
     }
@@ -334,9 +374,15 @@ void parse_options(int argc, char **argv)
 }
 
 // Entry point for program
+// Create a function which calls the functions which are needed for reseting state.
+// i.e: init_ncenv(), init_start_var(), draw_static(), refresh_snake();
+// Seperate all once-called functions vs possible ones called more than once
 int main(int argc, char **argv)
 {
     parse_options(argc, argv);
+
+    srand((unsigned int)time(NULL));
+
     init_ncenv();
     init_start_var();
     def_colors();
