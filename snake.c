@@ -8,7 +8,6 @@
  */
 
 #include <stdlib.h>
-#include <stdbool.h>
 #include <unistd.h>
 #include <curses.h>
 #include "snake.h"
@@ -137,7 +136,7 @@ void chsnake_collide()
 // Check if the snake has collided with the border
 void chborder_collide()
 {
-    if (borders == false) {
+    if (borders == 0) {
         ypos[0] = ypos[0] < 1 ? LINES - SCORE_WINH - 2 : 
             ypos[0] > LINES - SCORE_WINH - 2 ? 1 : ypos[0];
         xpos[0] = xpos[0] < 1 ? COLS - 2 : 
@@ -341,7 +340,7 @@ void draw_static()
     mvwprintw(scores, 0, 1,          "                  ");
     mvwprintw(scores, 0, 1,          "Score: %d",   score);
     mvwprintw(scores, 0, COLS/4 + 1, "Hiscore: %d", hiscore);
-    if (borders == true)
+    if (borders == 1)
         mvwprintw(scores, 0, COLS/2, "Borders on!");
     box(win_game, 0, 0);
 }
@@ -377,8 +376,8 @@ void init_ncenv()
     noecho();
     keypad(stdscr, TRUE);
     nodelay(stdscr, TRUE);
-    curs_set(false);
-    timeout(false);
+    curs_set(0);
+    timeout(0);
 
     scores   = newwin(SCORE_WINH,         COLS, 0,          0);
     win_game = newwin(LINES - SCORE_WINH, COLS, SCORE_WINH, 0);
@@ -412,11 +411,11 @@ void parse_options(int argc, char **argv)
     int i;
 
     // not happy with border setting here
-    borders = false;
+    borders = 0;
 
     for (i = 1; i < argc; i++) {
         if (strcmp(argv[i], "-b") == 0 || strcmp(argv[i], "--borders") == 0) {
-            borders = true;
+            borders = 1;
             SCORE_FILE = BSCORE_FILE;
         }
 
