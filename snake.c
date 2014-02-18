@@ -11,25 +11,31 @@
 #include <stdbool.h>
 #include <unistd.h>
 #include <curses.h>
+#include "snake.h"
 
 #define INIT_SPEED  40000
 #define INIT_LENGTH 6
 #define SCORE_WINH  1
 #define SNAKE_HEAD  "@"
 #define SNAKE_BODY  "*"
-
-// create header file
-void game_loop();
-void draw_static();
-void init_start_var();
-void init_ncenv();
+#define BSCORE_FILE ".sbhs"
+#define NSCORE_FILE ".snhs"
 
 // type enumerations
-enum movement {DOWN, RIGHT, UP, LEFT};
-enum colorset {GREEN = 1, MAGENTA};
+enum movement {
+    DOWN, 
+    RIGHT, 
+    UP, 
+    LEFT
+};
+
+enum colorset {
+    GREEN = 1, 
+    MAGENTA
+};
 
 // score file to write out to; default to non-border
-char *SCORE_FILE = ".snhs";
+char *SCORE_FILE = NSCORE_FILE;
 
 // Declaration of static variables
 int hiscore;
@@ -67,9 +73,17 @@ int get_hiscore()
 // Set the hiscore
 void set_hiscore()
 {
+    if (score < hiscore) return;
     hiscore = score;
     FILE *fd = fopen(SCORE_FILE, "w+");
     fprintf(fd, "%d", hiscore);
+    fclose(fd);
+}
+
+void reset_scores()
+{
+    FILE *fd = fopen(NSCORE_FILE, "w");
+    freopen(BSCORE_FILE, "w", fd);
     fclose(fd);
 }
 
@@ -89,30 +103,35 @@ void rand_fruit()
 
 // Run procedures before ending the game
 // Split this function into 3 parts: end_session(), print_score(), and just a standard exit(0);
-void endgame()
-{        
-    if (score > hiscore) 
-        set_hiscore();        
-    erase();
-    refresh();
-    endwin();
 
+void print_score()
+{
     printf("Your score this game was %d\n"
            "The highscore is %d\n", 
             score, hiscore);
     printf(score == hiscore ?
         "You set a new highscore!\n" : "");
+}
 
-    exit(EXIT_SUCCESS);
+void end_ncenv()
+{        
+    erase();
+    refresh();
+    endwin();
 }
 
 // Check if the snake has collided with itself
 void chsnake_collide()
 {
     int i;    
-    for (i = 1; i < length - 1; i++)
-        if (xpos[0] == xpos[i] && ypos[0] == ypos[i])
-            endgame();
+    for (i = 1; i < length - 1; i++) {
+        if (xpos[0] == xpos[i] && ypos[0] == ypos[i]) {
+            end_ncenv();
+            set_hiscore();
+            print_score();
+            exit(EXIT_SUCCESS);
+        }
+    }
 }
 
 // Check if the snake has collided with the border
@@ -126,8 +145,12 @@ void chborder_collide()
     }
     else {
         if (ypos[0] < 1 || ypos[0] > LINES - SCORE_WINH - 1 || 
-                xpos[0] < 1 || xpos[0] > COLS - 1)
-            endgame();
+                xpos[0] < 1 || xpos[0] > COLS - 1) {
+            end_ncenv();
+            set_hiscore();
+            print_score();
+            exit(EXIT_SUCCESS);
+        }
     }
 }
 
@@ -232,12 +255,8 @@ void pause_menu()
                 refresh_snake();
                 refresh_allw();
                 return;
-            // change this so the ncurses environment is not redrawn from scratch
-            // just init the start variables and clear the playing field
-            // free the xpos and ypos variables
             case 'r':
-                if (score > hiscore) 
-                    set_hiscore();        
+                set_hiscore();                  
                 clear_grid();
                 free(xpos);
                 free(ypos);
@@ -248,7 +267,10 @@ void pause_menu()
                 game_loop();
                 break;
             case 'q':
-                endgame();
+                end_ncenv();
+                set_hiscore();
+                print_score();
+                exit(EXIT_SUCCESS);
                 break;
         }
     }
@@ -284,7 +306,10 @@ void keypress_event()
                 pause_menu();
                 break;
             case 'q':
-                endgame();
+                end_ncenv();
+                set_hiscore();
+                print_score();
+                exit(EXIT_SUCCESS);
                 break;
         }
     }
@@ -360,16 +385,51 @@ void init_ncenv()
     refresh_allw();
 }
 
+// print details explaining how the options available
+void print_help()
+{
+    printf("Controls:\n"
+           "    hjkl, ARROW_KEYS    Movement\n"
+           "    p                   Pause menu\n"
+           "    q                   Quit session\n"
+           "\n");
+
+    printf("Usage:\n"
+           "    snake [options]\n"
+           "\n");
+
+    printf("Options:\n"
+           "    -h, --help          Display help information\n"
+           "    -b, --borders       Enable borders\n"
+           "    -r, --reset         Reset all saved scores\n"
+           "\n");
+}
+
 // Parse the intput options
 // Add some more options, such as --help, etc
 void parse_options(int argc, char **argv)
 {
-    if (argc > 1 && (strcmp(argv[1], "-b") == 0 || strcmp(argv[1], "--borders") == 0)) {
-        borders = true;
-        SCORE_FILE = ".sbhs";
-    }
-    else {
-        borders = false;
+    int i;
+
+    // not happy with border setting here
+    borders = false;
+
+    for (i = 1; i < argc; i++) {
+        if (strcmp(argv[i], "-b") == 0 || strcmp(argv[i], "--borders") == 0) {
+            borders = true;
+            SCORE_FILE = BSCORE_FILE;
+        }
+
+        if (strcmp(argv[i], "-h") == 0 || strcmp(argv[i], "--help") == 0) {
+            print_help();
+            exit(EXIT_SUCCESS);
+        }
+
+        if (strcmp(argv[i], "-r") == 0 || strcmp(argv[i], "--reset") == 0) {
+            reset_scores();
+            printf("Hiscores successfully reset!\n");
+            exit(EXIT_SUCCESS);
+        }
     }
 }
 
@@ -380,7 +440,6 @@ void parse_options(int argc, char **argv)
 int main(int argc, char **argv)
 {
     parse_options(argc, argv);
-
     srand((unsigned int)time(NULL));
 
     init_ncenv();
