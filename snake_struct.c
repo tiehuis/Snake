@@ -55,35 +55,25 @@ typedef struct win {
     int y;
     int x_offset;
     int y_offset;
+    int borders;
 } WIN;
 
-// alter game to make use of this data
-typedef struct game {
-    WIN *game;
-    WIN *data;
-    int borders;
-} GAME;
-
+// rename this so it doesn't have so many similar clashes in code
 typedef struct score1 {
     char *score_file;
     int hiscore;
     int score;
 } SCORE;
 
-// declare an instance of fruit, and snake
-SNAKE sn1;
-SNAKE *snake = &sn1;
-FRUIT fr1;
-FRUIT *fruit = &fr1;
-SCORE sc1;
-SCORE *sscore = &sc1;
-
-// Declaration of static variables
-int borders;
+// declare an instance of fruit, snake and score
+SNAKE sn1; SNAKE *snake = &sn1;
+FRUIT fr1; FRUIT *fruit = &fr1;
+SCORE sc1; SCORE *sscore = &sc1;
 
 // Main game windows
-WINDOW *scores;
-WINDOW *win_game;
+
+WIN win1; WIN *scores = &win1;
+WIN win2; WIN *win_game = &win2;
 
 // Define color pairs 
 void def_colors()
@@ -93,22 +83,22 @@ void def_colors()
 }
 
 // Return the current sscore->hiscore on file, creating the file if it doesn't exist
-int get_hiscore()
+int get_hiscore(SCORE *_score)
 {
-    FILE *fd = fopen(sscore->score_file, "r");
-    if (fd == NULL) fd = fopen(sscore->score_file, "w+");
-    if (fscanf(fd, "%d", &sscore->hiscore) == EOF) sscore->hiscore = 0;
+    FILE *fd = fopen(_score->score_file, "r");
+    if (fd == NULL) fd = fopen(_score->score_file, "w+");
+    if (fscanf(fd, "%d", &_score->hiscore) == EOF) _score->hiscore = 0;
     fclose(fd);
-    return sscore->hiscore;
+    return _score->hiscore;
 }
 
 // Set the sscore->hiscore
-void set_hiscore()
+void set_hiscore(SCORE *_score)
 {
-    if (sscore->score < sscore->hiscore) return;
-    sscore->hiscore = sscore->score;
-    FILE *fd = fopen(sscore->score_file, "w+");
-    fprintf(fd, "%d", sscore->hiscore);
+    if (_score->score < _score->hiscore) return;
+    _score->hiscore = _score->score;
+    FILE *fd = fopen(_score->score_file, "w+");
+    fprintf(fd, "%d", _score->hiscore);
     fclose(fd);
 }
 
@@ -119,29 +109,22 @@ void reset_scores()
     fclose(fd);
 }
 
-// Refresh all persistent game windows
-void refresh_allw()
-{
-    wrefresh(scores);
-    wrefresh(win_game);
-}
-
 // sets the fruit position to a random value on the game board
-void rand_fruit()
+void rand_fruit(FRUIT *_fruit, WIN *_win_game)
 { 
-    fruit->x = (rand() % (COLS - 2)) + 1;
-    fruit->y = (rand() % (LINES - SCORE_WINH - 2)) + 1;
+    _fruit->x = rand() % (_win_game->x - 2) + 1;
+    _fruit->y = rand() % (_win_game->y - 2) + 1;
 }
 
 // Run procedures before ending the game
 // Split this function into 3 parts: end_session(), print_score(), and just a standard exit(0);
 
-void print_score()
+void print_score(SCORE *_score)
 {
     printf("Your score this game was %d\n"
            "The highscore is %d\n", 
-            sscore->score, sscore->hiscore);
-    printf(sscore->score == sscore->hiscore ?
+            _score->score, _score->hiscore);
+    printf(_score->score == _score->hiscore ?
         "You set a new highscore!\n" : "");
 }
 
@@ -153,122 +136,128 @@ void end_ncenv()
 }
 
 // Check if the snake has collided with itself
-void chsnake_collide()
+void chsnake_collide(SNAKE *_snake, SCORE *_score)
 {
     int i;    
-    for (i = 1; i < snake->length - 1; i++) {
-        if (snake->xs[0] == snake->xs[i] && snake->ys[0] == snake->ys[i]) {
+    for (i = 1; i < _snake->length - 1; i++) {
+        if (_snake->xs[0] == _snake->xs[i] && _snake->ys[0] == _snake->ys[i]) {
             end_ncenv();
-            set_hiscore();
-            print_score();
+            set_hiscore(_score);
+            print_score(_score);
             exit(EXIT_SUCCESS);
         }
     }
 }
 
 // Check if the snake has collided with the border
-void chborder_collide()
+void chborder_collide(WIN *_win_game, SNAKE *_snake, SCORE *_score)
 {
-    if (borders == 0) {
-        snake->ys[0] = snake->ys[0] < 1 ? LINES - SCORE_WINH - 2 : 
-            snake->ys[0] > LINES - SCORE_WINH - 2 ? 1 : snake->ys[0];
-        snake->xs[0] = snake->xs[0] < 1 ? COLS - 2 : 
-            snake->xs[0] > COLS - 2 ? 1 : snake->xs[0];
+    if (_win_game->borders == 0) {
+        _snake->ys[0] = _snake->ys[0] < 1 ? _win_game->y - 2 : 
+            _snake->ys[0] > _win_game->y - 2 ? 1 : _snake->ys[0];
+        _snake->xs[0] = _snake->xs[0] < 2 ? _win_game->x - 1 : 
+            _snake->xs[0] > _win_game->x - 2 ? 1 : _snake->xs[0];
     }
     else {
-        if (snake->ys[0] < 1 || snake->ys[0] > LINES - SCORE_WINH - 1 || 
-                snake->xs[0] < 1 || snake->xs[0] > COLS - 1) {
+        if (_snake->ys[0] < 1 || _snake->ys[0] > _win_game->y - 1 || 
+                _snake->xs[0] < 1 || _snake->xs[0] > _win_game->x - 1) {
             end_ncenv();
-            set_hiscore();
-            print_score();
+            set_hiscore(_score);
+            print_score(_score);
             exit(EXIT_SUCCESS);
         }
     }
 }
 
 // Update the snakes position
-void upd_snake()
+void upd_snake(SNAKE *_snake)
 {
     int i;
-    for (i = snake->length - 1; i > 0; i--) {
-        snake->ys[i] = snake->ys[i - 1];
-        snake->xs[i] = snake->xs[i - 1];
+    for (i = _snake->length - 1; i > 0; i--) {
+        _snake->ys[i] = _snake->ys[i - 1];
+        _snake->xs[i] = _snake->xs[i - 1];
     }
 
-    switch (snake->direction) {
+    switch (_snake->direction) {
         case DOWN:
-            snake->ys[0] += 1;
+            _snake->ys[0] += 1;
             break;
         case RIGHT:
-            snake->xs[0] += 1;
+            _snake->xs[0] += 1;
             break;
         case UP:
-            snake->ys[0] -= 1;
+            _snake->ys[0] -= 1;
             break;
         case LEFT:
-            snake->xs[0] -= 1;
+            _snake->xs[0] -= 1;
             break;
     }
 }
 
-// Check if the snake has collided with the fruit
-void chfruit_collide()
+void increase_score(SCORE *_score, int _value)
 {
-    if (snake->xs[0] == fruit->x && snake->ys[0] == fruit->y) {
-        sscore->score += snake->length++ << 1;
-        mvwprintw(scores, 0, 1, "Score: %d", sscore->score);
-        rand_fruit();
-        snake->xs = realloc(snake->xs, sizeof(int) * snake->length);
-        snake->ys = realloc(snake->ys, sizeof(int) * snake->length);
+    _score->score += _value;
+}
+
+// Check if the snake has collided with the fruit
+void chfruit_collide(WIN *_scores, SNAKE *_snake, FRUIT *_fruit, SCORE *_score)
+{
+    if (_snake->xs[0] == _fruit->x && _snake->ys[0] == _fruit->y) {
+        increase_score(_score, 2 * _snake->length++);
+        mvwprintw(_scores->window, 0, 1, "Score: %d", _score->score);
+        rand_fruit(_fruit);
+        _snake->xs = realloc(_snake->xs, sizeof(int) * _snake->length);
+        _snake->ys = realloc(_snake->ys, sizeof(int) * _snake->length);
     }
 }
 
 // Draw the fruit to the game window
-void draw_fruit() 
+void draw_fruit(FRUIT *_fruit) 
 {
-    wattron(win_game, COLOR_PAIR(MAGENTA));
-    mvwprintw(win_game, fruit->y, fruit->x, "#");
-    wattroff(win_game, COLOR_PAIR(MAGENTA));
+    wattron(win_game->window, COLOR_PAIR(MAGENTA));
+    mvwprintw(win_game->window, _fruit->y, _fruit->x, "#");
+    wattroff(win_game->window, COLOR_PAIR(MAGENTA));
 }
 
 // Update the snake, just drawing the parts necessary
-void draw_snake()
+void draw_snake(SNAKE *_snake)
 {
-    wattron(win_game, COLOR_PAIR(GREEN));
-    mvwprintw(win_game, snake->ys[0], snake->xs[0], SNAKE_HEAD);
-    mvwprintw(win_game, snake->ys[1], snake->xs[1], SNAKE_BODY);
-    wattroff(win_game, COLOR_PAIR(GREEN));
+    wattron(win_game->window, COLOR_PAIR(GREEN));
+    mvwprintw(win_game->window, _snake->ys[0], _snake->xs[0], SNAKE_HEAD);
+    mvwprintw(win_game->window, _snake->ys[1], _snake->xs[1], SNAKE_BODY);
+    wattroff(win_game->window, COLOR_PAIR(GREEN));
 }
 
 // Redraw all parts of the snake
-void refresh_snake()
+void refresh_snake(WIN *_win_game, SNAKE *_snake)
 {
     int i;
-    wattron(win_game, COLOR_PAIR(GREEN));
-    mvwprintw(win_game, snake->ys[0], snake->xs[0], SNAKE_HEAD);
-    for (i = 1; i < snake->length; i++) 
-        mvwprintw(win_game, snake->ys[i], snake->xs[i], SNAKE_BODY);
-    wattroff(win_game, COLOR_PAIR(GREEN));
+    wattron(_win_game->window, COLOR_PAIR(GREEN));
+    mvwprintw(_win_game->window, _snake->ys[0], _snake->xs[0], SNAKE_HEAD);
+    for (i = 1; i < _snake->length; i++) 
+        mvwprintw(_win_game->window, _snake->ys[i], _snake->xs[i], SNAKE_BODY);
+    wattroff(_win_game->window, COLOR_PAIR(GREEN));
 }
 
 // don't need to clear entire grid, just snake and fruit pos
 // move into two seperate functions
-void clear_grid()
+void clear_grid(WIN *_win_game, SNAKE *_snake, FRUIT *_fruit)
 {
     int i;
-    for (i = 0; i < snake->length; i++) {
-        mvwprintw(win_game, snake->ys[i], snake->xs[i], " ");
+    for (i = 0; i < _snake->length; i++) {
+        mvwprintw(_win_game->window, _snake->ys[i], _snake->xs[i], " ");
     }
-    mvwprintw(win_game, fruit->y, fruit->x, " ");
+    mvwprintw(_win_game->window, _fruit->y, _fruit->x, " ");
 }
 
 // Initialize the pause menu and wait for user interaction
-void pause_menu()
+void pause_menu(SNAKE *_snake, FRUIT *_fruit, SCORE *_score)
 {
     int ch;
-    int pause_height = 5;
-    int pause_width = 19;
+    const int pause_height = 5;
+    const int pause_width = 19;
 
+    // don't need a WIN type here
     WINDOW *pause_win = newwin(pause_height, pause_width, 
         LINES / 2 - pause_height / 2, COLS / 2 - pause_width / 2);
 
@@ -281,27 +270,28 @@ void pause_menu()
     while (ch = getch()) {
         switch (ch) {
             case 'p':
+                // return appropriate code here and act on it in main loop to avoid passing values
                 werase(pause_win);
                 wrefresh(pause_win);
                 delwin(pause_win);
-                refresh_snake();
+                refresh_snake(_snake);
                 refresh_allw();
                 return;
             case 'r':
-                set_hiscore();                  
-                clear_grid();
-                free(snake->xs);
-                free(snake->ys);
+                set_hiscore(_score);                  
+                clear_grid(_snake, _fruit);
+                free(_snake->xs);
+                free(_snake->ys);
                 init_start_var();
                 draw_static();
-                refresh_snake();
+                refresh_snake(_snake);
                 refresh_allw();
                 game_loop();
                 break;
             case 'q':
                 end_ncenv();
-                set_hiscore();
-                print_score();
+                set_hiscore(_score);
+                print_score(_score);
                 exit(EXIT_SUCCESS);
                 break;
         }
@@ -309,38 +299,39 @@ void pause_menu()
 }
 
 // Check for keypress and process if one has occured
-void keypress_event()
+void keypress_event(SNAKE *_snake)
 {
     int ch = getch();
     if (ch != ERR) {
         switch (ch) {
             case 'j':
             case KEY_DOWN:
-                if (snake->direction != UP) 
-                    snake->direction = DOWN; 
+                // maybe return values here
+                if (_snake->direction != UP) 
+                    _snake->direction = DOWN; 
                 break;
             case 'l':
             case KEY_RIGHT:
-                if (snake->direction != LEFT) 
-                    snake->direction = RIGHT; 
+                if (_snake->direction != LEFT) 
+                    _snake->direction = RIGHT; 
                 break;
             case 'k': 
             case KEY_UP:
-                if (snake->direction != DOWN) 
-                    snake->direction = UP; 
+                if (_snake->direction != DOWN) 
+                    _snake->direction = UP; 
                 break;
             case 'h':
             case KEY_LEFT:
-                if (snake->direction != RIGHT) 
-                    snake->direction = LEFT; 
+                if (_snake->direction != RIGHT) 
+                    _snake->direction = LEFT; 
                 break;
             case 'p':
                 pause_menu();
                 break;
             case 'q':
                 end_ncenv();
-                set_hiscore();
-                print_score();
+                set_hiscore(_score);
+                print_score(_score);
                 exit(EXIT_SUCCESS);
                 break;
         }
@@ -348,60 +339,61 @@ void keypress_event()
 }
 
 // The main game loop; calls other functions as needed
-void game_loop()
+void game_loop(WIN *_win_game, WIN *_scores, SNAKE *_snake, FRUIT *_fruit, SCORE *_score)
 {
     while (1) {
-        keypress_event();
-        mvwprintw(win_game, snake->ys[snake->length - 1], snake->xs[snake->length - 1], " ");
-        draw_fruit();
-        chfruit_collide();
-        upd_snake();
-        chborder_collide();
-        chsnake_collide();
-        draw_snake();
-        refresh_allw();
-        usleep(snake->speed < 15000 ? snake->speed : snake->speed--);
+        keypress_event(_snake);
+        mvwprintw(_win_game->window, _snake->ys[_snake->length - 1], _snake->xs[_snake->length - 1], " ");
+        draw_fruit(_fruit);
+        chfruit_collide(_snake, _fruit);
+        upd_snake(_snake);
+        chborder_collide(_snake);
+        chsnake_collide(_snake);
+        draw_snake(_snake);
+        wrefresh(_win_game);
+        wrefresh(_scores);
+        usleep(_snake->speed < 15000 ? _snake->speed : _snake->speed--);
     }
 }
 
 // Draw non-changing/static portions of the windows
-void draw_static()
+void draw_static(WIN *_scores, WIN *_win_game, SCORE *_score, )
 {
     // on reset, ensure that the entire grid that was covered by 'sscore->score'...
     // ...is reverted back to empty chars
     // find a more elegant way to do this
-    mvwprintw(scores, 0, 1,          "                  ");
-    mvwprintw(scores, 0, 1,          "Score: %d",   sscore->score);
-    mvwprintw(scores, 0, COLS/4 + 1, "Hiscore: %d", sscore->hiscore);
-    if (borders == 1)
-        mvwprintw(scores, 0, COLS/2, "Borders on!");
-    box(win_game, 0, 0);
+    mvwprintw(_scores->window, 0, 1,          "                  ");
+    mvwprintw(_scores->window, 0, 1,          "Score: %d",   _score->score);
+    mvwprintw(_scores->window, 0, COLS/4 + 1, "Hiscore: %d", _score->hiscore);
+    if (_win_game->borders == 1)
+        mvwprintw(_scores->window, 0, COLS/2, "Borders on!");
+    box(_win_game->window, 0, 0);
 }
 
 // Initialize start variables to values
-void init_start_var()
+void init_start_var(SNAKE *_snake, FRUIT *_fruit, SCORE *_score)
 {
     // decide whether to reseed on each game, or on every session
     // should move this elsewhere
 
-    sscore->score     = 0;
-    sscore->hiscore   = get_hiscore();
-    snake->length    = INIT_LENGTH;
-    snake->direction = RIGHT;
-    snake->speed     = INIT_SPEED;
-    rand_fruit();
-    snake->xs = malloc(sizeof(int) * snake->length);
-    snake->ys = malloc(sizeof(int) * snake->length);
+    _score->score     = 0;
+    _score->hiscore   = get_hiscore(_score);
+    _snake->length    = INIT_LENGTH;
+    _snake->direction = RIGHT;
+    _snake->speed     = INIT_SPEED;
+    rand_fruit(_fruit);
+    _snake->xs = malloc(sizeof(int) * _snake->length);
+    _snake->ys = malloc(sizeof(int) * _snake->length);
 
     int i;
-    for (i = 0; i < snake->length; i++) {
-        snake->ys[i] = LINES/2;
-        snake->xs[i] = COLS/2 - i;
+    for (i = 0; i < _snake->length; i++) {
+        _snake->ys[i] = LINES/2;
+        _snake->xs[i] = COLS/2 - i;
     }
 }
 
 // Initialize the ncurses environment
-void init_ncenv()
+void init_ncenv(WIN *_scores, WIN *_win_game)
 {
     initscr();
     start_color();
@@ -412,8 +404,20 @@ void init_ncenv()
     curs_set(0);
     timeout(0);
 
-    scores   = newwin(SCORE_WINH,         COLS, 0,          0);
-    win_game = newwin(LINES - SCORE_WINH, COLS, SCORE_WINH, 0);
+    // init window values
+    _scores->x = COLS;
+    _scores->y = 1;
+    _scores->x_offset = 0;
+    _scores->y_offset = 0;
+    _scores->borders = 0;
+
+    _win_game->x = COLS;
+    _win_game->y = LINES - scores->y;
+    _win_game->x_offset = 0;
+    _win_game->y_offset = scores->y;
+
+    _scores->window   = newwin(_scores->y,   _scores->x,   _scores->y_offset,   _scores->x_offset);
+    _win_game->window = newwin(_win_game->y, _win_game->x, _win_game->y_offset, _win_game->x_offset);
     refresh_allw();
 }
 
@@ -439,17 +443,17 @@ void print_help()
 
 // Parse the intput options
 // Add some more options, such as --help, etc
-void parse_options(int argc, char **argv)
+void parse_options(int argc, char **argv, WIN *_win_game, SCORE *_score)
 {
     int i;
 
     // not happy with border setting here
-    borders = 0;
+    _win_game->borders = 0;
 
     for (i = 1; i < argc; i++) {
         if (strcmp(argv[i], "-b") == 0 || strcmp(argv[i], "--borders") == 0) {
-            borders = 1;
-            sscore->score_file = BSCORE_FILE;
+            _win_game->borders = 1;
+            _score->score_file = BSCORE_FILE;
         }
 
         if (strcmp(argv[i], "-h") == 0 || strcmp(argv[i], "--help") == 0) {
@@ -471,15 +475,17 @@ void parse_options(int argc, char **argv)
 // Seperate all once-called functions vs possible ones called more than once
 int main(int argc, char **argv)
 {
+    // declaring non-static variables
+
     sscore->score_file = NSCORE_FILE;
     parse_options(argc, argv);
     srand((unsigned int)time(NULL));
 
-    init_ncenv();
-    init_start_var();
+    init_ncenv(sscores, win_game);
+    init_start_var(snake, fruit, sscores);
     def_colors();
-    draw_static();
-    refresh_snake();
+    draw_static(scores, win_game, sscores);
+    refresh_snake(snake);
     game_loop();
     exit(EXIT_FAILURE);
 }
