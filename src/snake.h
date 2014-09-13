@@ -1,9 +1,29 @@
 #ifndef __SNAKE__
 #define __SNAKE__
 
-// just storing function prototypes currently
+#define INIT_SPEED  40000
+#define INIT_LENGTH 6
+#define INIT_CAPACITY 32
+#define SCORE_WINH  1
+#define SNAKE_HEAD  "@"
+#define SNAKE_BODY  "*"
+#define BSCORE_FILE ".sbhs"
+#define NSCORE_FILE ".snhs"
+#define OPPOSITE 5
 
-int get_hiscore();
+enum movement {
+    DOWN  = 1, 
+    RIGHT = 2, 
+    LEFT  = 3,
+    UP    = 4, 
+};
+
+enum colorset {
+    GREEN = 1, 
+    MAGENTA
+};
+
+int  get_hiscore();
 void set_hiscore();
 void reset_scores();
 void refresh_allw();

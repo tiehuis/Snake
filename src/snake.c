@@ -12,39 +12,21 @@
 #include <curses.h>
 #include "snake.h"
 
-#define INIT_SPEED  40000
-#define INIT_LENGTH 6
-#define SCORE_WINH  1
-#define SNAKE_HEAD  "@"
-#define SNAKE_BODY  "*"
-#define BSCORE_FILE ".sbhs"
-#define NSCORE_FILE ".snhs"
-
-// type enumerations
-enum movement {
-    DOWN, 
-    RIGHT, 
-    UP, 
-    LEFT
-};
-
-enum colorset {
-    GREEN = 1, 
-    MAGENTA
-};
-
 // score file to write out to; default to non-border
 char *SCORE_FILE = NSCORE_FILE;
 
 // Declaration of static variables
 int hiscore;
 int score;
-int length;
 int direction;
 int speed;
 int borders;
 int xfr;
 int yfr;
+
+/* Snake variables */
+int capacity;
+int length;
 int *xpos;
 int *ypos;
 
@@ -105,11 +87,8 @@ void rand_fruit()
 
 void print_score()
 {
-    printf("Your score this game was %d\n"
-           "The highscore is %d\n", 
-            score, hiscore);
-    printf(score == hiscore ?
-        "You set a new highscore!\n" : "");
+    printf("Your score this game was %d\n""The highscore is %d\n", score, hiscore);
+    printf(score == hiscore ? "You set a new highscore!\n" : "");
 }
 
 void end_ncenv()
@@ -185,8 +164,12 @@ void chfruit_collide()
         score += length++ << 1;
         mvwprintw(scores, 0, 1, "Score: %d", score);
         rand_fruit();
-        xpos = realloc(xpos, sizeof(int) * length);
-        ypos = realloc(ypos, sizeof(int) * length);
+
+        if (length == capacity) {
+            capacity *= 2;
+            xpos = realloc(xpos, sizeof(int) * capacity);
+            ypos = realloc(ypos, sizeof(int) * capacity);
+        }
     }
 }
 
@@ -223,9 +206,8 @@ void refresh_snake()
 void clear_grid()
 {
     int i;
-    for (i = 0; i < length; i++) {
+    for (i = 0; i < length; i++)
         mvwprintw(win_game, ypos[i], xpos[i], " ");
-    }
     mvwprintw(win_game, yfr, xfr, " ");
 }
 
@@ -354,11 +336,12 @@ void init_start_var()
     score     = 0;
     hiscore   = get_hiscore();
     length    = INIT_LENGTH;
+    capacity  = INIT_CAPACITY;
     direction = RIGHT;
     speed     = INIT_SPEED;
     rand_fruit();
-    xpos = malloc(sizeof(int) * length);
-    ypos = malloc(sizeof(int) * length);
+    xpos = malloc(sizeof(int) * capacity);
+    ypos = malloc(sizeof(int) * capacity);
 
     int i;
     for (i = 0; i < length; i++) {

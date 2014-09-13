@@ -5,6 +5,9 @@ LIBS	= -lcurses
 
 all: snake
 
+test:
+	$(CC) -o $(PROG) $(SRC) $(LIBS)
+
 snake:
 	$(CC) -o $(PROG) $(SRC) $(LIBS)
 
