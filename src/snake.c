@@ -7,7 +7,10 @@
  *        Optimizations
  */
 
+#include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
+#include <time.h>
 #include <unistd.h>
 #include <curses.h>
 #include "snake.h"
@@ -214,7 +217,6 @@ void clear_grid()
 // Initialize the pause menu and wait for user interaction
 void pause_menu()
 {
-    int ch;
     int pause_height = 5;
     int pause_width = 19;
 
@@ -227,7 +229,8 @@ void pause_menu()
     mvwprintw(pause_win, pause_height / 2 + 1, 2, "<q> to quit");
     wrefresh(pause_win);
 
-    while (ch = getch()) {
+    int ch;
+    while ((ch = getch())) {
         switch (ch) {
             case 'p':
                 werase(pause_win);
