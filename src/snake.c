@@ -1,5 +1,5 @@
 /*
- *  TODO: 
+ *  TODO:
  *        Improve highscore storing; keep a history of values and not just the highest. Protect by...
  *        ... encoding in a different non-readable format.
  *        Might change back some of the justifying on some function calls with longer arguments
@@ -37,7 +37,7 @@ int *ypos;
 WINDOW *scores;
 WINDOW *win_game;
 
-// Define color pairs 
+// Define color pairs
 void def_colors()
 {
     init_pair(GREEN,   COLOR_GREEN,   COLOR_BLACK);
@@ -80,7 +80,7 @@ void refresh_allw()
 
 // sets the fruit position to a random value on the game board
 void rand_fruit()
-{ 
+{
     xfr = (rand() % (COLS - 2)) + 1;
     yfr = (rand() % (LINES - SCORE_WINH - 2)) + 1;
 }
@@ -95,7 +95,7 @@ void print_score()
 }
 
 void end_ncenv()
-{        
+{
     erase();
     refresh();
     endwin();
@@ -104,7 +104,7 @@ void end_ncenv()
 // Check if the snake has collided with itself
 void chsnake_collide()
 {
-    int i;    
+    int i;
     for (i = 1; i < length - 1; i++) {
         if (xpos[0] == xpos[i] && ypos[0] == ypos[i]) {
             end_ncenv();
@@ -119,13 +119,13 @@ void chsnake_collide()
 void chborder_collide()
 {
     if (borders == 0) {
-        ypos[0] = ypos[0] < 1 ? LINES - SCORE_WINH - 2 : 
+        ypos[0] = ypos[0] < 1 ? LINES - SCORE_WINH - 2 :
             ypos[0] > LINES - SCORE_WINH - 2 ? 1 : ypos[0];
-        xpos[0] = xpos[0] < 1 ? COLS - 2 : 
+        xpos[0] = xpos[0] < 1 ? COLS - 2 :
             xpos[0] > COLS - 2 ? 1 : xpos[0];
     }
     else {
-        if (ypos[0] < 1 || ypos[0] > LINES - SCORE_WINH - 1 || 
+        if (ypos[0] < 1 || ypos[0] > LINES - SCORE_WINH - 1 ||
                 xpos[0] < 1 || xpos[0] > COLS - 1) {
             end_ncenv();
             set_hiscore();
@@ -177,7 +177,7 @@ void chfruit_collide()
 }
 
 // Draw the fruit to the game window
-void draw_fruit() 
+void draw_fruit()
 {
     wattron(win_game, COLOR_PAIR(MAGENTA));
     mvwprintw(win_game, yfr, xfr, "#");
@@ -199,7 +199,7 @@ void refresh_snake()
     int i;
     wattron(win_game, COLOR_PAIR(GREEN));
     mvwprintw(win_game, ypos[0], xpos[0], SNAKE_HEAD);
-    for (i = 1; i < length; i++) 
+    for (i = 1; i < length; i++)
         mvwprintw(win_game, ypos[i], xpos[i], SNAKE_BODY);
     wattroff(win_game, COLOR_PAIR(GREEN));
 }
@@ -220,7 +220,7 @@ void pause_menu()
     int pause_height = 5;
     int pause_width = 19;
 
-    WINDOW *pause_win = newwin(pause_height, pause_width, 
+    WINDOW *pause_win = newwin(pause_height, pause_width,
         LINES / 2 - pause_height / 2, COLS / 2 - pause_width / 2);
 
     box(pause_win, 0, 0);
@@ -240,7 +240,7 @@ void pause_menu()
                 refresh_allw();
                 return;
             case 'r':
-                set_hiscore();                  
+                set_hiscore();
                 clear_grid();
                 free(xpos);
                 free(ypos);
@@ -268,23 +268,23 @@ void keypress_event()
         switch (ch) {
             case 'j':
             case KEY_DOWN:
-                if (direction != UP) 
-                    direction = DOWN; 
+                if (direction != UP)
+                    direction = DOWN;
                 break;
             case 'l':
             case KEY_RIGHT:
-                if (direction != LEFT) 
-                    direction = RIGHT; 
+                if (direction != LEFT)
+                    direction = RIGHT;
                 break;
-            case 'k': 
+            case 'k':
             case KEY_UP:
-                if (direction != DOWN) 
-                    direction = UP; 
+                if (direction != DOWN)
+                    direction = UP;
                 break;
             case 'h':
             case KEY_LEFT:
-                if (direction != RIGHT) 
-                    direction = LEFT; 
+                if (direction != RIGHT)
+                    direction = LEFT;
                 break;
             case 'p':
                 pause_menu();
@@ -312,7 +312,16 @@ void game_loop()
         chsnake_collide();
         draw_snake();
         refresh_allw();
-        usleep(speed < 15000 ? speed : speed--);
+        switch(direction) {
+              case RIGHT:
+              case LEFT:
+                  usleep(speed < 15000 ? speed : speed--);
+                  break;
+              case UP:
+              case DOWN:
+                  usleep((speed < 15000 ? speed : speed--) * 1.5);
+                  break;
+        }
     }
 }
 
