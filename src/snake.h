@@ -1,7 +1,7 @@
 #ifndef __SNAKE__
 #define __SNAKE__
 
-#define INIT_SPEED  40000
+#define INIT_SPEED  100000
 #define INIT_LENGTH 6
 #define INIT_CAPACITY 32
 #define SCORE_WINH  1
