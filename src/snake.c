@@ -1,24 +1,35 @@
-/*
- *  TODO:
- *        Improve highscore storing; keep a history of values and not just the highest. Protect by...
- *        ... encoding in a different non-readable format.
- *        Might change back some of the justifying on some function calls with longer arguments
- *        Create header
- *        Optimizations
- */
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
 #include <unistd.h>
 #include <curses.h>
-#include "snake.h"
+#include "config.h"
 
-// score file to write out to; default to non-border
+#if defined(__clang__) || (__GNUC__ >= 3) || (__GNUC__ == 2 && __GNUC_MINOR__ >= 5)
+#   define NORETURN__ __attribute__((noreturn))
+#endif
+
+/* Initial capacity to use for snake arrays */
+#define INIT_CAPACITY 32
+
+/* Message to be displayed on opening help */
+#define HELP_STR                                            \
+    "Controls:\n"                                           \
+    "    hjkl, ARROW_KEYS    Movement\n"                    \
+    "    p                   Pause menu\n"                  \
+    "    q                   Quit session\n"                \
+    "\n"                                                    \
+    "Usage:\n"                                              \
+    "    snake [options]\n"                                 \
+    "\n"                                                    \
+    "Options:\n"                                            \
+    "    -h, --help          Display help information\n"    \
+    "    -b, --borders       Enable borders\n"              \
+    "    -r, --reset         Reset all saved scores\n"
+
+/* Global variables */
 char *SCORE_FILE = NSCORE_FILE;
-
-// Declaration of static variables
 int hiscore;
 int score;
 int direction;
@@ -33,19 +44,67 @@ int length;
 int *xpos;
 int *ypos;
 
-// Main game windows
 WINDOW *scores;
 WINDOW *win_game;
 
-// Define color pairs
-void def_colors()
+/* Function declarations (only those required are here currently) */
+void game_main_loop(void) NORETURN__;
+int hiscore_get(void);
+void logic_generate_random_fruit(void);
+void draw_blit_all(void);
+
+/* Initialization and destruction routines */
+void init_variables(void)
 {
+    srand((unsigned int)time(NULL));
+
+    borders   = 0;
+    score     = 0;
+    hiscore   = hiscore_get();
+    length    = INIT_LENGTH;
+    capacity  = INIT_CAPACITY;
+    direction = RIGHT;
+    speed     = INIT_SPEED;
+    logic_generate_random_fruit();
+    xpos = malloc(sizeof(int) * capacity);
+    ypos = malloc(sizeof(int) * capacity);
+
+    int i;
+    for (i = 0; i < length; i++) {
+        ypos[i] = LINES/2;
+        xpos[i] = COLS/2 - i;
+    }
+}
+
+void init_ncurses(void)
+{
+    initscr();
+    if (has_colors())
+        start_color();
+    cbreak();
+    noecho();
+    keypad(stdscr, TRUE);
+    nodelay(stdscr, TRUE);
+    curs_set(0);
+    timeout(0);
+    scores   = newwin(SCORE_WINH,         COLS, 0,          0);
+    win_game = newwin(LINES - SCORE_WINH, COLS, SCORE_WINH, 0);
+    draw_blit_all();
+
+    /* Define all our color pairs */
     init_pair(GREEN,   COLOR_GREEN,   COLOR_BLACK);
     init_pair(MAGENTA, COLOR_MAGENTA, COLOR_BLACK);
 }
 
-// Return the current hiscore on file, creating the file if it doesn't exist
-int get_hiscore()
+void free_ncurses(void)
+{
+    erase();
+    refresh();
+    endwin();
+}
+
+/* Hiscore routines */
+int hiscore_get(void)
 {
     FILE *fd = fopen(SCORE_FILE, "r");
     if (fd == NULL) fd = fopen(SCORE_FILE, "w+");
@@ -54,8 +113,7 @@ int get_hiscore()
     return hiscore;
 }
 
-// Set the hiscore
-void set_hiscore()
+void hiscore_set(void)
 {
     if (score < hiscore) return;
     hiscore = score;
@@ -64,59 +122,35 @@ void set_hiscore()
     fclose(fd);
 }
 
-void reset_scores()
+void hiscore_reset(void)
 {
     FILE *fd = fopen(NSCORE_FILE, "w");
     freopen(BSCORE_FILE, "w", fd);
     fclose(fd);
 }
 
-// Refresh all persistent game windows
-void refresh_allw()
-{
-    wrefresh(scores);
-    wrefresh(win_game);
-}
-
-// sets the fruit position to a random value on the game board
-void rand_fruit()
-{
-    xfr = (rand() % (COLS - 2)) + 1;
-    yfr = (rand() % (LINES - SCORE_WINH - 2)) + 1;
-}
-
-// Run procedures before ending the game
-// Split this function into 3 parts: end_session(), print_score(), and just a standard exit(0);
-
-void print_score()
+void hiscore_print(void)
 {
     printf("Your score this game was %d\n""The highscore is %d\n", score, hiscore);
     printf(score == hiscore ? "You set a new highscore!\n" : "");
 }
 
-void end_ncenv()
-{
-    erase();
-    refresh();
-    endwin();
-}
-
-// Check if the snake has collided with itself
-void chsnake_collide()
+/* Game logic */
+void logic_snake_collision(void)
 {
     int i;
     for (i = 1; i < length - 1; i++) {
         if (xpos[0] == xpos[i] && ypos[0] == ypos[i]) {
-            end_ncenv();
-            set_hiscore();
-            print_score();
+            free_ncurses();
+            hiscore_set();
+            hiscore_print();
             exit(EXIT_SUCCESS);
         }
     }
 }
 
 // Check if the snake has collided with the border
-void chborder_collide()
+void logic_border_collision(void)
 {
     if (borders == 0) {
         ypos[0] = ypos[0] < 1 ? LINES - SCORE_WINH - 2 :
@@ -127,16 +161,16 @@ void chborder_collide()
     else {
         if (ypos[0] < 1 || ypos[0] > LINES - SCORE_WINH - 1 ||
                 xpos[0] < 1 || xpos[0] > COLS - 1) {
-            end_ncenv();
-            set_hiscore();
-            print_score();
+            free_ncurses();
+            hiscore_set();
+            hiscore_print();
             exit(EXIT_SUCCESS);
         }
     }
 }
 
 // Update the snakes position
-void upd_snake()
+void logic_update_snake(void)
 {
     int i;
     for (i = length - 1; i > 0; i--) {
@@ -161,12 +195,12 @@ void upd_snake()
 }
 
 // Check if the snake has collided with the fruit
-void chfruit_collide()
+void logic_fruit_collision(void)
 {
     if (xpos[0] == xfr && ypos[0] == yfr) {
         score += length++ << 1;
         mvwprintw(scores, 0, 1, "Score: %d", score);
-        rand_fruit();
+        logic_generate_random_fruit();
 
         if (length == capacity) {
             capacity *= 2;
@@ -176,8 +210,29 @@ void chfruit_collide()
     }
 }
 
+// sets the fruit position to a random value on the game board
+void logic_generate_random_fruit(void)
+{
+    xfr = (rand() % (COLS - 2)) + 1;
+    yfr = (rand() % (LINES - SCORE_WINH - 2)) + 1;
+}
+
+/* Drawing functions */
+void draw_static(void)
+{
+    // on reset, ensure that the entire grid that was covered by 'score'...
+    // ...is reverted back to empty chars
+    // find a more elegant way to do this
+    mvwprintw(scores, 0, 1,          "                  ");
+    mvwprintw(scores, 0, 1,          "Score: %d",   score);
+    mvwprintw(scores, 0, COLS/4 + 1, "Hiscore: %d", hiscore);
+    if (borders == 1)
+        mvwprintw(scores, 0, COLS/2, "Borders on!");
+    box(win_game, 0, 0);
+}
+
 // Draw the fruit to the game window
-void draw_fruit()
+void draw_fruit(void)
 {
     wattron(win_game, COLOR_PAIR(MAGENTA));
     mvwprintw(win_game, yfr, xfr, "#");
@@ -185,7 +240,7 @@ void draw_fruit()
 }
 
 // Update the snake, just drawing the parts necessary
-void draw_snake()
+void draw_snake(void)
 {
     wattron(win_game, COLOR_PAIR(GREEN));
     mvwprintw(win_game, ypos[0], xpos[0], SNAKE_HEAD);
@@ -194,7 +249,7 @@ void draw_snake()
 }
 
 // Redraw all parts of the snake
-void refresh_snake()
+void draw_snake_all(void)
 {
     int i;
     wattron(win_game, COLOR_PAIR(GREEN));
@@ -206,7 +261,7 @@ void refresh_snake()
 
 // don't need to clear entire grid, just snake and fruit pos
 // move into two seperate functions
-void clear_grid()
+void draw_clear_all(void)
 {
     int i;
     for (i = 0; i < length; i++)
@@ -214,8 +269,15 @@ void clear_grid()
     mvwprintw(win_game, yfr, xfr, " ");
 }
 
-// Initialize the pause menu and wait for user interaction
-void pause_menu()
+// Refresh all persistent game windows
+void draw_blit_all(void)
+{
+    wrefresh(scores);
+    wrefresh(win_game);
+}
+
+/* Pause menu */
+void game_enter_pause(void)
 {
     int pause_height = 5;
     int pause_width = 19;
@@ -236,32 +298,32 @@ void pause_menu()
                 werase(pause_win);
                 wrefresh(pause_win);
                 delwin(pause_win);
-                refresh_snake();
-                refresh_allw();
+                draw_snake_all();
+                draw_blit_all();
                 return;
             case 'r':
-                set_hiscore();
-                clear_grid();
+                hiscore_set();
+                draw_clear_all();
                 free(xpos);
                 free(ypos);
-                init_start_var();
+                init_variables();
                 draw_static();
-                refresh_snake();
-                refresh_allw();
-                game_loop();
+                draw_snake_all();
+                draw_blit_all();
+                game_main_loop();
                 break;
             case 'q':
-                end_ncenv();
-                set_hiscore();
-                print_score();
+                free_ncurses();
+                hiscore_set();
+                hiscore_print();
                 exit(EXIT_SUCCESS);
                 break;
         }
     }
 }
 
-// Check for keypress and process if one has occured
-void keypress_event()
+/* I/O controls */
+void game_keypress_handler(void)
 {
     int ch = getch();
     if (ch != ERR) {
@@ -287,126 +349,51 @@ void keypress_event()
                     direction = LEFT;
                 break;
             case 'p':
-                pause_menu();
+                game_enter_pause();
                 break;
             case 'q':
-                end_ncenv();
-                set_hiscore();
-                print_score();
+                free_ncurses();
+                hiscore_set();
+                hiscore_print();
                 exit(EXIT_SUCCESS);
                 break;
         }
     }
 }
 
-// The main game loop; calls other functions as needed
-void game_loop()
+/* Main game loop */
+void game_main_loop(void)
 {
+    draw_static();
+    draw_snake_all();
+
     while (1) {
-        keypress_event();
+        game_keypress_handler();
         mvwprintw(win_game, ypos[length - 1], xpos[length - 1], " ");
         draw_fruit();
-        chfruit_collide();
-        upd_snake();
-        chborder_collide();
-        chsnake_collide();
+        logic_fruit_collision();
+        logic_update_snake();
+        logic_border_collision();
+        logic_snake_collision();
         draw_snake();
-        refresh_allw();
+        draw_blit_all();
         switch(direction) {
               case RIGHT:
               case LEFT:
-                  usleep(speed < 15000 ? speed : speed--);
+                  usleep(speed < UPPER_SPEED_LIMIT ? speed : speed--);
                   break;
               case UP:
               case DOWN:
-                  usleep((speed < 15000 ? speed : speed--) * 1.5);
+                  usleep((speed < UPPER_SPEED_LIMIT ? speed : speed--) * FONT_HW_RATIO);
                   break;
         }
     }
 }
 
-// Draw non-changing/static portions of the windows
-void draw_static()
-{
-    // on reset, ensure that the entire grid that was covered by 'score'...
-    // ...is reverted back to empty chars
-    // find a more elegant way to do this
-    mvwprintw(scores, 0, 1,          "                  ");
-    mvwprintw(scores, 0, 1,          "Score: %d",   score);
-    mvwprintw(scores, 0, COLS/4 + 1, "Hiscore: %d", hiscore);
-    if (borders == 1)
-        mvwprintw(scores, 0, COLS/2, "Borders on!");
-    box(win_game, 0, 0);
-}
-
-// Initialize start variables to values
-void init_start_var()
-{
-    // decide whether to reseed on each game, or on every session
-    // should move this elsewhere
-
-    score     = 0;
-    hiscore   = get_hiscore();
-    length    = INIT_LENGTH;
-    capacity  = INIT_CAPACITY;
-    direction = RIGHT;
-    speed     = INIT_SPEED;
-    rand_fruit();
-    xpos = malloc(sizeof(int) * capacity);
-    ypos = malloc(sizeof(int) * capacity);
-
-    int i;
-    for (i = 0; i < length; i++) {
-        ypos[i] = LINES/2;
-        xpos[i] = COLS/2 - i;
-    }
-}
-
-// Initialize the ncurses environment
-void init_ncenv()
-{
-    initscr();
-    start_color();
-    cbreak();
-    noecho();
-    keypad(stdscr, TRUE);
-    nodelay(stdscr, TRUE);
-    curs_set(0);
-    timeout(0);
-
-    scores   = newwin(SCORE_WINH,         COLS, 0,          0);
-    win_game = newwin(LINES - SCORE_WINH, COLS, SCORE_WINH, 0);
-    refresh_allw();
-}
-
-// print details explaining how the options available
-void print_help()
-{
-    printf("Controls:\n"
-           "    hjkl, ARROW_KEYS    Movement\n"
-           "    p                   Pause menu\n"
-           "    q                   Quit session\n"
-           "\n");
-
-    printf("Usage:\n"
-           "    snake [options]\n"
-           "\n");
-
-    printf("Options:\n"
-           "    -h, --help          Display help information\n"
-           "    -b, --borders       Enable borders\n"
-           "    -r, --reset         Reset all saved scores\n"
-           "\n");
-}
-
-// Parse the intput options
-// Add some more options, such as --help, etc
-void parse_options(int argc, char **argv)
+/* Set options on game initialization */
+void init_parse_options(int argc, char **argv)
 {
     int i;
-
-    // not happy with border setting here
-    borders = 0;
 
     for (i = 1; i < argc; i++) {
         if (strcmp(argv[i], "-b") == 0 || strcmp(argv[i], "--borders") == 0) {
@@ -415,32 +402,24 @@ void parse_options(int argc, char **argv)
         }
 
         if (strcmp(argv[i], "-h") == 0 || strcmp(argv[i], "--help") == 0) {
-            print_help();
+            free_ncurses();
+            printf("%s\n", HELP_STR);
             exit(EXIT_SUCCESS);
         }
 
         if (strcmp(argv[i], "-r") == 0 || strcmp(argv[i], "--reset") == 0) {
-            reset_scores();
+            free_ncurses();
+            hiscore_reset();
             printf("Hiscores successfully reset!\n");
             exit(EXIT_SUCCESS);
         }
     }
 }
 
-// Entry point for program
-// Create a function which calls the functions which are needed for reseting state.
-// i.e: init_ncenv(), init_start_var(), draw_static(), refresh_snake();
-// Seperate all once-called functions vs possible ones called more than once
 int main(int argc, char **argv)
 {
-    parse_options(argc, argv);
-    srand((unsigned int)time(NULL));
-
-    init_ncenv();
-    init_start_var();
-    def_colors();
-    draw_static();
-    refresh_snake();
-    game_loop();
-    exit(EXIT_FAILURE);
+    init_ncurses();
+    init_variables();
+    init_parse_options(argc, argv);
+    game_main_loop();
 }

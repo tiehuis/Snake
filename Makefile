@@ -1,13 +1,13 @@
-CC 	   ?= gcc
-CFLAGS += -Wall
-PROG	= snake
-SRC		= src/snake.c
+CC	   ?= clang
+CFLAGS += -Wall -Wextra -pedantic
+PROG   := snake
+SRC	   := src/snake.c
 LIBS	= -lcurses
 
 all: snake
 
-snake: src/snake.c src/snake.h
-	$(CC) $(CFLAGS) -o $(PROG) $(SRC) $(LIBS)
+snake: src/snake.c src/config.h
+	$(CC) $(CFLAGS) -o snake src/snake.c -lcurses
 
 clean:
-	@rm -f $(PROG)
+	rm -f snake
