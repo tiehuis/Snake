@@ -6,8 +6,10 @@
 #include <curses.h>
 #include "config.h"
 
-#if defined(__clang__) || (__GNUC__ >= 3) || (__GNUC__ == 2 && __GNUC_MINOR__ >= 5)
-#   define NORETURN__ __attribute__((noreturn))
+#if defined(__clang__) || (__GNUC__)
+#   if (__GNUC__ >= 3) || ((__GNUC__ == 2) && (__GNUC_MINOR__ >= 5))
+#       define NORETURN__ __attribute__((noreturn))
+#   endif
 #endif
 
 /* Initial capacity to use for snake arrays */
@@ -396,18 +398,31 @@ void init_parse_options(int argc, char **argv)
     int i;
 
     for (i = 1; i < argc; i++) {
-        if (strcmp(argv[i], "-b") == 0 || strcmp(argv[i], "--borders") == 0) {
+        if (strcmp(argv[i], "-s") == 0 || strcmp(argv[i], "--speed") == 0) {
+            if (i + 1 < argc) {
+                char *endptr;
+                long s_arg = strtol(argv[i + 1], &endptr, 10);
+
+                if (*endptr == '\0') {
+                    speed = s_arg < UPPER_SPEED_LIMIT ? UPPER_SPEED_LIMIT : s_arg;
+                    continue;
+                }
+            }
+
+            free_ncurses();
+            printf("Invalid argument to option '-s'\n");
+            exit(EXIT_SUCCESS);
+        }
+        else if (strcmp(argv[i], "-b") == 0 || strcmp(argv[i], "--borders") == 0) {
             borders = 1;
             SCORE_FILE = BSCORE_FILE;
         }
-
-        if (strcmp(argv[i], "-h") == 0 || strcmp(argv[i], "--help") == 0) {
+        else if (strcmp(argv[i], "-h") == 0 || strcmp(argv[i], "--help") == 0) {
             free_ncurses();
             printf("%s\n", HELP_STR);
             exit(EXIT_SUCCESS);
         }
-
-        if (strcmp(argv[i], "-r") == 0 || strcmp(argv[i], "--reset") == 0) {
+        else if (strcmp(argv[i], "-r") == 0 || strcmp(argv[i], "--reset") == 0) {
             free_ncurses();
             hiscore_reset();
             printf("Hiscores successfully reset!\n");

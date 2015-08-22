@@ -1,5 +1,5 @@
 CC	   ?= clang
-CFLAGS += -Wall -Wextra -pedantic
+CFLAGS += -Wall -Wextra -pedantic -O2
 PROG   := snake
 SRC	   := src/snake.c
 LIBS	= -lcurses
